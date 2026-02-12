@@ -1,3 +1,5 @@
+app.js
+
 // ================= FIREBASE IMPORTS (CDN ONLY) =================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -41,7 +43,6 @@ let timerInterval;
 // ================= REGISTER =================
 window.register = async function () {
   try {
-
     const emailVal = email.value;
     const passwordVal = password.value;
 
@@ -52,28 +53,14 @@ window.register = async function () {
       return;
     }
 
-    // Create account
-    const userCredential =
-      await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
-
-    const user = userCredential.user;
-
-    // 🔥 Create Firestore profile immediately (user is authenticated now)
-    await setDoc(doc(db,"users",user.uid),{
-      email: emailVal,
-      role: "student",
-      attempted: false
-    });
-
-    await sendEmailVerification(user);
+    const user = await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
+    await sendEmailVerification(user.user);
 
     msg.innerText="Verification email sent.";
-
   } catch(e){
     msg.innerText=e.message;
   }
 };
-
 
 
 // ================= LOGIN =================
