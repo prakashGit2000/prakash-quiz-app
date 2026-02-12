@@ -7,20 +7,18 @@
 
 <body>
 
-<div class="container">
-  <h1>Prakash Online Quiz</h1>
+<div class="container" id="mainBox">
 
-  <div id="loginBox">
-    <input type="email" id="email" placeholder="Email">
-    <input type="password" id="password" placeholder="Password">
-    <button onclick="login()">Login</button>
-  </div>
+  <h2>Prakash Sir Online Quiz</h2>
 
-  <div id="dashboard" style="display:none;">
-    <h2>Welcome</h2>
-    <p>You are logged in.</p>
-    <button onclick="logout()">Logout</button>
-  </div>
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+
+  <button onclick="login()">Login</button>
+  <button onclick="register()">Register</button>
+
+  <p id="msg"></p>
+
 </div>
 
 <script type="module" src="app.js"></script>
