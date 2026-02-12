@@ -64,29 +64,37 @@ window.register = async function () {
 // ================= LOGIN =================
 window.login = async function () {
   try{
-
     const userCred = await signInWithEmailAndPassword(auth,email.value,password.value);
     const user = userCred.user;
 
-    // ✅ ADMIN LOGIN (skip verification)
-    if(user.email === "prakash4snu@gmail.com"){
+    const userDoc = await getDoc(doc(db,"users",user.uid));
+
+    if(!userDoc.exists()){
+      msg.innerText="User record missing.";
+      return;
+    }
+
+    const data = userDoc.data();
+
+    // ✅ ADMIN LOGIN — no verification needed
+    if(data.role === "admin"){
       loadAdmin();
       return;
     }
 
-    // ✅ STUDENT must verify email
+    // ✅ Students must verify
     if(!user.emailVerified){
       msg.innerText="Please verify your email before login.";
       return;
     }
 
-    // Student continues
     checkExamStatus();
 
   }catch(e){
     msg.innerText=e.message;
   }
 };
+
 
 
 
