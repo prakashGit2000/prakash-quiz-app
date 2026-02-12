@@ -66,25 +66,43 @@ window.register = async function () {
 // ================= LOGIN =================
 window.login = async function () {
   try{
-    const userCred = await signInWithEmailAndPassword(auth,email.value,password.value);
-    const user = userCred.user;
 
-    const userDoc = await getDoc(doc(db,"users",user.uid));
+    const emailVal = email.value;
 
-    if(!userDoc.exists()){
-      msg.innerText="User record missing.";
+    // ✅ Step 1 — Check if email is allowed
+    const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
+
+    if(!allowed.exists()){
+      msg.innerText="This email is not allowed.";
       return;
     }
 
-    const data = userDoc.data();
+    // ✅ Step 2 — Sign in
+    const userCred = await signInWithEmailAndPassword(auth,emailVal,password.value);
+    const user = userCred.user;
 
-    // ✅ ADMIN LOGIN — no verification needed
+    // ✅ Step 3 — Auto-create Firestore profile if missing
+    const userRef = doc(db,"users",user.uid);
+    const userDoc = await getDoc(userRef);
+
+    if(!userDoc.exists()){
+      await setDoc(userRef,{
+        email: user.email,
+        role: (user.email === "prakash4snu@gmail.com") ? "admin" : "student",
+        attempted: false,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    const data = (await getDoc(userRef)).data();
+
+    // ✅ Admin login
     if(data.role === "admin"){
       loadAdmin();
       return;
     }
 
-    // ✅ Students must verify
+    // ✅ Students must verify email
     if(!user.emailVerified){
       msg.innerText="Please verify your email before login.";
       return;
