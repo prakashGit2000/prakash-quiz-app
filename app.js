@@ -1,6 +1,4 @@
-// 🔥 Firebase Imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-
 import {
   getAuth,
   signInWithEmailAndPassword,
@@ -17,12 +15,10 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-
-// 🔥 Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
   authDomain: "prakashsir-quiz-system.firebaseapp.com",
-  projectId: "prakashsir-quiz-system",
+  projectId: "prakashsir-quiz-system"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -30,14 +26,13 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 let questions = [];
+let timerInterval;
 
 
-// ==============================
-// 🔵 STUDENT REGISTRATION
-// ==============================
+// ================= REGISTER =================
 window.register = async function () {
-  const emailVal = document.getElementById("email").value;
-  const passwordVal = document.getElementById("password").value;
+  const emailVal = email.value;
+  const passwordVal = password.value;
 
   const userCredential = await createUserWithEmailAndPassword(auth, emailVal, passwordVal);
   const user = userCredential.user;
@@ -45,32 +40,21 @@ window.register = async function () {
   await setDoc(doc(db, "users", user.uid), {
     email: emailVal,
     role: "student",
-    approved: false
+    approved: false,
+    attempted: false
   });
 
-  document.getElementById("msg").innerText =
-    "Registered successfully. Wait for admin approval.";
+  msg.innerText = "Registered. Wait for admin approval.";
 };
 
 
-// ==============================
-// 🔵 LOGIN SYSTEM WITH ROLE CHECK
-// ==============================
+// ================= LOGIN =================
 window.login = async function () {
 
-  const emailVal = document.getElementById("email").value;
-  const passwordVal = document.getElementById("password").value;
-
-  const userCredential = await signInWithEmailAndPassword(auth, emailVal, passwordVal);
+  const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
   const user = userCredential.user;
 
   const userDoc = await getDoc(doc(db, "users", user.uid));
-
-  if (!userDoc.exists()) {
-    document.getElementById("msg").innerText = "User not registered.";
-    return;
-  }
-
   const data = userDoc.data();
 
   if (data.role === "student" && data.approved === false) {
@@ -78,25 +62,60 @@ window.login = async function () {
     return;
   }
 
-  if (data.role === "admin") {
-    loadAdmin();
-  } else {
-    loadQuiz();
+  if (data.role === "student" && data.attempted === true) {
+    document.body.innerHTML = "<h3>You already attempted the quiz</h3>";
+    return;
   }
+
+  if (data.role === "admin") loadAdmin();
+  else loadQuiz();
 };
 
 
-// ==============================
-// 🔵 LOAD QUIZ FOR STUDENTS
-// ==============================
+// ================= ADMIN PANEL =================
+async function loadAdmin() {
+
+  let html = "<h2>Admin Dashboard</h2><h3>Pending Students</h3>";
+
+  const snapshot = await getDocs(collection(db, "users"));
+
+  snapshot.forEach(docSnap => {
+    const u = docSnap.data();
+
+    if (u.role === "student" && u.approved === false) {
+      html += `
+        <p>${u.email}
+        <button onclick="approveStudent('${docSnap.id}')">Approve</button></p>`;
+    }
+  });
+
+  html += "<h3>Approved Students</h3>";
+
+  snapshot.forEach(docSnap => {
+    const u = docSnap.data();
+    if (u.role === "student" && u.approved === true) html += `<p>${u.email} ✅</p>`;
+  });
+
+  document.body.innerHTML = html;
+}
+
+window.approveStudent = async function (uid) {
+  await updateDoc(doc(db, "users", uid), { approved: true });
+  alert("Approved");
+  loadAdmin();
+};
+
+
+// ================= LOAD QUIZ =================
 async function loadQuiz() {
 
-  document.body.innerHTML = "<h2>Loading Quiz...</h2>";
+  document.body.innerHTML = "<h2 id='timer'></h2><h3>Loading Quiz...</h3>";
+
+  startTimer(30); // 30 minutes
 
   const snapshot = await getDocs(collection(db, "quizzes/quiz1/questions"));
 
-  questions = [];
-  let html = "<h2>Quiz</h2>";
+  let html = "<h2 id='timer'></h2>";
 
   snapshot.forEach(docSnap => {
     const q = docSnap.data();
@@ -111,15 +130,39 @@ async function loadQuiz() {
     `;
   });
 
-  html += `<button onclick="submitQuiz()">Submit Quiz</button>`;
+  html += `<button onclick="submitQuiz()">Submit</button>`;
   document.body.innerHTML = html;
 }
 
 
-// ==============================
-// 🔵 SUBMIT QUIZ
-// ==============================
+// ================= TIMER =================
+function startTimer(minutes) {
+
+  let time = minutes * 60;
+
+  timerInterval = setInterval(() => {
+
+    const min = Math.floor(time / 60);
+    const sec = time % 60;
+
+    const timerEl = document.getElementById("timer");
+    if (timerEl) timerEl.innerText = `Time Left: ${min}:${sec}`;
+
+    time--;
+
+    if (time <= 0) {
+      clearInterval(timerInterval);
+      submitQuiz();
+    }
+
+  }, 1000);
+}
+
+
+// ================= SUBMIT =================
 window.submitQuiz = async function () {
+
+  clearInterval(timerInterval);
 
   let score = 0;
 
@@ -133,62 +176,10 @@ window.submitQuiz = async function () {
   await setDoc(doc(db, "results", user.uid), {
     email: user.email,
     score: score,
-    total: questions.length,
-    submittedAt: new Date().toISOString()
+    total: questions.length
   });
 
-  document.body.innerHTML = `
-    <h2>Quiz Submitted</h2>
-    <h3>Your Score: ${score} / ${questions.length}</h3>
-  `;
-};
+  await updateDoc(doc(db, "users", user.uid), { attempted: true });
 
-
-// ==============================
-// 🔵 ADMIN DASHBOARD
-// ==============================
-async function loadAdmin() {
-
-  let html = `<h2>Admin Dashboard</h2>
-              <h3>Pending Student Approvals</h3>`;
-
-  const snapshot = await getDocs(collection(db, "users"));
-
-  snapshot.forEach(docSnap => {
-    const user = docSnap.data();
-
-    if (user.role === "student" && user.approved === false) {
-      html += `
-        <div style="border:1px solid #ccc;padding:10px;margin:10px;">
-          <p>${user.email}</p>
-          <button onclick="approveStudent('${docSnap.id}')">Approve</button>
-        </div>
-      `;
-    }
-  });
-
-  html += `<h3>Approved Students</h3>`;
-
-  snapshot.forEach(docSnap => {
-    const user = docSnap.data();
-    if (user.role === "student" && user.approved === true) {
-      html += `<p>${user.email} ✅</p>`;
-    }
-  });
-
-  document.body.innerHTML = html;
-}
-
-
-// ==============================
-// 🔵 APPROVE STUDENT FUNCTION
-// ==============================
-window.approveStudent = async function (uid) {
-
-  await updateDoc(doc(db, "users", uid), {
-    approved: true
-  });
-
-  alert("Student Approved");
-  loadAdmin();
+  document.body.innerHTML = `<h2>Submitted</h2><h3>Score: ${score}/${questions.length}</h3>`;
 };
