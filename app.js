@@ -1,23 +1,40 @@
-import { createUserWithEmailAndPassword }
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-import { setDoc }
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-
+// Firebase Imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword }
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
   getFirestore,
   collection,
-  getDocs
+  getDocs,
+  doc,
+  getDoc,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-window.register = async function() {
 
-  const emailVal = email.value;
-  const passwordVal = password.value;
+
+// Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
+  authDomain: "prakashsir-quiz-system.firebaseapp.com",
+  projectId: "prakashsir-quiz-system",
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let questions = [];
+
+
+// 🔵 STUDENT REGISTRATION
+window.register = async function() {
+  const emailVal = document.getElementById("email").value;
+  const passwordVal = document.getElementById("password").value;
 
   const userCredential = await createUserWithEmailAndPassword(auth, emailVal, passwordVal);
   const user = userCredential.user;
@@ -29,46 +46,98 @@ window.register = async function() {
   });
 
   document.getElementById("msg").innerText =
-    "Registered successfully. Wait for admin approval.";
-}
-
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
-  authDomain: "prakashsir-quiz-system.firebaseapp.com",
-  projectId: "prakashsir-quiz-system",
-  storageBucket: "prakashsir-quiz-system.firebasestorage.app",
-  messagingSenderId: "319414061738",
-  appId: "1:319414061738:web:318c9c438e0991f09a9ed3"
+    "Registered. Wait for admin approval.";
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
 
+// 🔵 LOGIN SYSTEM WITH ROLE CHECK
 window.login = async function() {
-  const email = email.value;
-  const password = password.value;
 
-  await signInWithEmailAndPassword(auth, email, password);
+  const emailVal = document.getElementById("email").value;
+  const passwordVal = document.getElementById("password").value;
+
+  const userCredential = await signInWithEmailAndPassword(auth, emailVal, passwordVal);
+  const user = userCredential.user;
+
+  const userDoc = await getDoc(doc(db, "users", user.uid));
+
+  if (!userDoc.exists()) {
+    document.getElementById("msg").innerText = "Not registered by admin.";
+    return;
+  }
+
+  const data = userDoc.data();
+
+  if (data.role === "student" && data.approved === false) {
+    document.body.innerHTML = "<h3>Waiting for Admin Approval</h3>";
+    return;
+  }
+
+  if (data.role === "admin") {
+    loadAdmin();
+  } else {
+    loadQuiz();
+  }
+};
+
+
+// 🔵 LOAD QUIZ FOR STUDENTS
+async function loadQuiz() {
 
   document.body.innerHTML = "<h2>Loading Quiz...</h2>";
 
-  const querySnapshot = await getDocs(collection(db, "quizzes/quiz1/questions"));
+  const snapshot = await getDocs(collection(db, "quizzes/quiz1/questions"));
 
-  let html = "<h2>Quiz Started</h2>";
+  let html = "<h2>Quiz</h2>";
 
-  querySnapshot.forEach(doc => {
-    const q = doc.data();
+  snapshot.forEach(docSnap => {
+    const q = docSnap.data();
+    questions.push({ id: docSnap.id, ...q });
+
     html += `
       <p><b>${q.question}</b></p>
-      <label><input type="radio" name="${doc.id}" value="${q.option1}"> ${q.option1}</label><br>
-      <label><input type="radio" name="${doc.id}" value="${q.option2}"> ${q.option2}</label><br>
-      <label><input type="radio" name="${doc.id}" value="${q.option3}"> ${q.option3}</label><br>
-      <label><input type="radio" name="${doc.id}" value="${q.option4}"> ${q.option4}</label><br><br>
+      <label><input type="radio" name="${docSnap.id}" value="${q.option1}">${q.option1}</label><br>
+      <label><input type="radio" name="${docSnap.id}" value="${q.option2}">${q.option2}</label><br>
+      <label><input type="radio" name="${docSnap.id}" value="${q.option3}">${q.option3}</label><br>
+      <label><input type="radio" name="${docSnap.id}" value="${q.option4}">${q.option4}</label><br><br>
     `;
   });
 
-  html += `<button onclick="submitQuiz()">Submit</button>`;
+  html += `<button onclick="submitQuiz()">Submit Quiz</button>`;
   document.body.innerHTML = html;
+}
+
+
+// 🔵 SUBMIT QUIZ
+window.submitQuiz = async function() {
+
+  let score = 0;
+
+  questions.forEach(q => {
+    const selected = document.querySelector(`input[name="${q.id}"]:checked`);
+    if (selected && selected.value === q.answer) score++;
+  });
+
+  const user = auth.currentUser;
+
+  await setDoc(doc(db, "results", user.uid), {
+    email: user.email,
+    score: score,
+    total: questions.length,
+    submittedAt: new Date().toISOString()
+  });
+
+  document.body.innerHTML = `
+    <h2>Quiz Submitted</h2>
+    <h3>Your Score: ${score} / ${questions.length}</h3>
+  `;
+};
+
+
+// 🔵 ADMIN PANEL
+function loadAdmin() {
+  document.body.innerHTML = `
+    <h2>Admin Dashboard</h2>
+    <p>Approve students from Firebase → users collection.</p>
+  `;
 }
