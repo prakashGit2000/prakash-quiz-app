@@ -14,6 +14,24 @@ import {
   collection,
   getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+window.register = async function() {
+
+  const emailVal = email.value;
+  const passwordVal = password.value;
+
+  const userCredential = await createUserWithEmailAndPassword(auth, emailVal, passwordVal);
+  const user = userCredential.user;
+
+  await setDoc(doc(db, "users", user.uid), {
+    email: emailVal,
+    role: "student",
+    approved: false
+  });
+
+  document.getElementById("msg").innerText =
+    "Registered successfully. Wait for admin approval.";
+}
+
 
 const firebaseConfig = {
   apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
