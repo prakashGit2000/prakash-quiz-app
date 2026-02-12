@@ -1,29 +1,33 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Prakash Online Quiz</title>
-  <style>
-    body { font-family: Arial; text-align:center; background:#f4f6f9; }
-    .box { background:white; padding:30px; width:350px; margin:auto; margin-top:80px; }
-    input { width:90%; padding:10px; margin:10px; }
-    button { padding:10px 20px; margin:5px; cursor:pointer; }
-  </style>
-</head>
+  <title>Online Quiz System</title>
 
+  <style>
+    body { font-family: Arial; background:#eef2f7; text-align:center; }
+    .card { background:white; padding:25px; width:420px; margin:auto; margin-top:60px; box-shadow:0 0 10px #ccc; }
+    input, select { width:90%; padding:10px; margin:8px; }
+    button { padding:10px 18px; margin:5px; cursor:pointer; background:#1976d2; color:white; border:none; }
+    button:hover { background:#125ca1; }
+    #timer { font-size:22px; color:red; }
+  </style>
+
+</head>
 <body>
 
-<div class="box" id="mainBox">
-  <h2>Prakash Sir Online Quiz</h2>
+<div class="card" id="app">
+  <h2>Quiz Portal</h2>
 
   <input type="email" id="email" placeholder="Email">
   <input type="password" id="password" placeholder="Password">
 
-  <button onclick="login()">Login</button>
   <button onclick="register()">Register</button>
+  <button onclick="login()">Login</button>
 
   <p id="msg"></p>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script type="module" src="app.js"></script>
 
 </body>
