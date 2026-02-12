@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Prakash Quiz System</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Prakash Online Quiz</title>
+  <style>
+    body { font-family: Arial; text-align:center; background:#f4f6f9; }
+    .box { background:white; padding:30px; width:350px; margin:auto; margin-top:80px; }
+    input { width:90%; padding:10px; margin:10px; }
+    button { padding:10px 20px; margin:5px; cursor:pointer; }
+  </style>
 </head>
 
 <body>
 
-<div class="container" id="mainBox">
-
+<div class="box" id="mainBox">
   <h2>Prakash Sir Online Quiz</h2>
 
   <input type="email" id="email" placeholder="Email">
@@ -18,7 +22,6 @@
   <button onclick="register()">Register</button>
 
   <p id="msg"></p>
-
 </div>
 
 <script type="module" src="app.js"></script>
