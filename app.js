@@ -1,3 +1,4 @@
+// ================= FIREBASE IMPORTS (CDN ONLY) =================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth,
@@ -17,13 +18,18 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-// 🔴 PUT YOUR REAL CONFIG HERE
+// ================= YOUR FIREBASE CONFIG =================
 const firebaseConfig = {
-  apiKey: "PASTE_API_KEY",
+  apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
   authDomain: "prakashsir-quiz-system.firebaseapp.com",
-  projectId: "prakashsir-quiz-system"
+  projectId: "prakashsir-quiz-system",
+  storageBucket: "prakashsir-quiz-system.appspot.com",
+  messagingSenderId: "319414061738",
+  appId: "1:319414061738:web:318c9c438e0991f09a9ed3"
 };
 
+
+// ================= INITIALIZE =================
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -65,7 +71,7 @@ window.login = async function () {
       return;
     }
 
-    if(userCred.user.email==="YOUR_ADMIN_EMAIL"){
+    if(userCred.user.email==="prakash4snu@gmail.com"){   // ← put your admin mail
       loadAdmin();
     }else{
       checkExamStatus();
@@ -78,7 +84,6 @@ window.login = async function () {
 
 // ================= ADMIN PANEL =================
 function loadAdmin(){
-
 document.body.innerHTML=`
 <h2>Admin Dashboard</h2>
 
@@ -92,10 +97,6 @@ document.body.innerHTML=`
 
 <hr>
 
-<select id="quizSelect">
-<option value="quiz1">Quiz 1</option>
-</select>
-
 <input id="duration" placeholder="Duration (minutes)">
 
 <button onclick="startExam()">Start Exam</button>
@@ -107,9 +108,8 @@ document.body.innerHTML=`
 }
 
 
-// ================= STUDENT EXCEL UPLOAD =================
+// ================= UPLOAD STUDENTS =================
 window.uploadStudents = async function(){
-
 const file=document.getElementById("studentFile").files[0];
 if(!file){alert("Select file");return;}
 
@@ -131,30 +131,21 @@ reader.readAsArrayBuffer(file);
 };
 
 
-// ================= QUESTIONS UPLOAD =================
+// ================= UPLOAD QUESTIONS =================
 window.uploadQuestions = async function(){
-
 const file=document.getElementById("questionFile").files[0];
 if(!file){alert("Select file");return;}
 
 const reader=new FileReader();
 
 reader.onload=async function(e){
-
 const data=new Uint8Array(e.target.result);
 const workbook=XLSX.read(data,{type:"array"});
 const rows=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
 let i=1;
-
 for(const r of rows){
-
-await setDoc(doc(db,"quizzes","quiz1","questions","q"+i),{
-question:r.question,
-options:[r.option1,r.option2,r.option3,r.option4],
-answer:r.answer
-});
-
+await setDoc(doc(db,"quizzes","quiz1","questions","q"+i),r);
 i++;
 }
 
@@ -165,15 +156,13 @@ reader.readAsArrayBuffer(file);
 };
 
 
-// ================= START EXAM =================
+// ================= START =================
 window.startExam = async function(){
-
 await setDoc(doc(db,"config","activeQuiz"),{
-quizId:quizSelect.value,
+quizId:"quiz1",
 duration:Number(duration.value),
 status:"running"
 });
-
 adminMsg.innerText="Exam Started";
 };
 
@@ -187,7 +176,6 @@ adminMsg.innerText="Exam Stopped";
 
 // ================= CHECK =================
 async function checkExamStatus(){
-
 const cfg=await getDoc(doc(db,"config","activeQuiz"));
 const data=cfg.data();
 
@@ -202,15 +190,12 @@ loadQuiz(data.quizId,data.duration);
 
 // ================= LOAD QUIZ =================
 async function loadQuiz(quizId,duration){
-
 document.body.innerHTML="<h2 id='timer'></h2><div id='quiz'></div>";
-
 startTimer(duration);
 
 const snap=await getDocs(collection(db,"quizzes",quizId,"questions"));
 
 let html="";
-
 snap.forEach(d=>{
 const q=d.data();
 questions.push(q);
@@ -229,7 +214,6 @@ quiz.innerHTML=html;
 // ================= TIMER =================
 function startTimer(minutes){
 let t=minutes*60;
-
 timerInterval=setInterval(()=>{
 const m=Math.floor(t/60);
 const s=t%60;
@@ -242,11 +226,9 @@ if(t<=0){clearInterval(timerInterval);submitQuiz();}
 
 // ================= SUBMIT =================
 window.submitQuiz = async function(){
-
 clearInterval(timerInterval);
 
 let score=0;
-
 questions.forEach(q=>{
 const ans=document.querySelector(`input[name="${q.question}"]:checked`);
 if(ans && ans.value===q.answer) score++;
@@ -264,7 +246,6 @@ document.body.innerHTML=`<h2>Submitted</h2><h3>Score ${score}</h3>`;
 
 // ================= DOWNLOAD =================
 window.downloadResults = async function(){
-
 const snap=await getDocs(collection(db,"results"));
 const rows=[["Email","Score","Total"]];
 
