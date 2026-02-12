@@ -1,4 +1,4 @@
-// Firebase Imports
+// 🔥 Firebase Imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 
 import {
@@ -13,11 +13,12 @@ import {
   getDocs,
   doc,
   getDoc,
-  setDoc
+  setDoc,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-// Firebase Config
+// 🔥 Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
   authDomain: "prakashsir-quiz-system.firebaseapp.com",
@@ -31,8 +32,10 @@ const db = getFirestore(app);
 let questions = [];
 
 
+// ==============================
 // 🔵 STUDENT REGISTRATION
-window.register = async function() {
+// ==============================
+window.register = async function () {
   const emailVal = document.getElementById("email").value;
   const passwordVal = document.getElementById("password").value;
 
@@ -46,12 +49,14 @@ window.register = async function() {
   });
 
   document.getElementById("msg").innerText =
-    "Registered. Wait for admin approval.";
+    "Registered successfully. Wait for admin approval.";
 };
 
 
+// ==============================
 // 🔵 LOGIN SYSTEM WITH ROLE CHECK
-window.login = async function() {
+// ==============================
+window.login = async function () {
 
   const emailVal = document.getElementById("email").value;
   const passwordVal = document.getElementById("password").value;
@@ -62,7 +67,7 @@ window.login = async function() {
   const userDoc = await getDoc(doc(db, "users", user.uid));
 
   if (!userDoc.exists()) {
-    document.getElementById("msg").innerText = "Not registered by admin.";
+    document.getElementById("msg").innerText = "User not registered.";
     return;
   }
 
@@ -81,13 +86,16 @@ window.login = async function() {
 };
 
 
+// ==============================
 // 🔵 LOAD QUIZ FOR STUDENTS
+// ==============================
 async function loadQuiz() {
 
   document.body.innerHTML = "<h2>Loading Quiz...</h2>";
 
   const snapshot = await getDocs(collection(db, "quizzes/quiz1/questions"));
 
+  questions = [];
   let html = "<h2>Quiz</h2>";
 
   snapshot.forEach(docSnap => {
@@ -108,8 +116,10 @@ async function loadQuiz() {
 }
 
 
+// ==============================
 // 🔵 SUBMIT QUIZ
-window.submitQuiz = async function() {
+// ==============================
+window.submitQuiz = async function () {
 
   let score = 0;
 
@@ -134,10 +144,51 @@ window.submitQuiz = async function() {
 };
 
 
-// 🔵 ADMIN PANEL
-function loadAdmin() {
-  document.body.innerHTML = `
-    <h2>Admin Dashboard</h2>
-    <p>Approve students from Firebase → users collection.</p>
-  `;
+// ==============================
+// 🔵 ADMIN DASHBOARD
+// ==============================
+async function loadAdmin() {
+
+  let html = `<h2>Admin Dashboard</h2>
+              <h3>Pending Student Approvals</h3>`;
+
+  const snapshot = await getDocs(collection(db, "users"));
+
+  snapshot.forEach(docSnap => {
+    const user = docSnap.data();
+
+    if (user.role === "student" && user.approved === false) {
+      html += `
+        <div style="border:1px solid #ccc;padding:10px;margin:10px;">
+          <p>${user.email}</p>
+          <button onclick="approveStudent('${docSnap.id}')">Approve</button>
+        </div>
+      `;
+    }
+  });
+
+  html += `<h3>Approved Students</h3>`;
+
+  snapshot.forEach(docSnap => {
+    const user = docSnap.data();
+    if (user.role === "student" && user.approved === true) {
+      html += `<p>${user.email} ✅</p>`;
+    }
+  });
+
+  document.body.innerHTML = html;
 }
+
+
+// ==============================
+// 🔵 APPROVE STUDENT FUNCTION
+// ==============================
+window.approveStudent = async function (uid) {
+
+  await updateDoc(doc(db, "users", uid), {
+    approved: true
+  });
+
+  alert("Student Approved");
+  loadAdmin();
+};
