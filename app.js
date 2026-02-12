@@ -64,22 +64,30 @@ window.register = async function () {
 // ================= LOGIN =================
 window.login = async function () {
   try{
-    const userCred = await signInWithEmailAndPassword(auth,email.value,password.value);
 
-    if(!userCred.user.emailVerified){
-      msg.innerText="Verify email first.";
+    const userCred = await signInWithEmailAndPassword(auth,email.value,password.value);
+    const user = userCred.user;
+
+    // ✅ ADMIN LOGIN (skip verification)
+    if(user.email === "prakash4snu@gmail.com"){
+      loadAdmin();
       return;
     }
 
-    if(userCred.user.email==="prakash4snu@gmail.com"){   // ← put your admin mail
-      loadAdmin();
-    }else{
-      checkExamStatus();
+    // ✅ STUDENT must verify email
+    if(!user.emailVerified){
+      msg.innerText="Please verify your email before login.";
+      return;
     }
+
+    // Student continues
+    checkExamStatus();
+
   }catch(e){
     msg.innerText=e.message;
   }
 };
+
 
 
 // ================= ADMIN PANEL =================
