@@ -41,6 +41,7 @@ let timerInterval;
 // ================= REGISTER =================
 window.register = async function () {
   try {
+
     const emailVal = email.value;
     const passwordVal = password.value;
 
@@ -51,14 +52,28 @@ window.register = async function () {
       return;
     }
 
-    const user = await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
-    await sendEmailVerification(user.user);
+    // Create account
+    const userCredential =
+      await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
+
+    const user = userCredential.user;
+
+    // 🔥 Create Firestore profile immediately (user is authenticated now)
+    await setDoc(doc(db,"users",user.uid),{
+      email: emailVal,
+      role: "student",
+      attempted: false
+    });
+
+    await sendEmailVerification(user);
 
     msg.innerText="Verification email sent.";
+
   } catch(e){
     msg.innerText=e.message;
   }
 };
+
 
 
 // ================= LOGIN =================
