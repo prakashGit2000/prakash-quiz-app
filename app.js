@@ -2,23 +2,24 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  sendEmailVerification
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
   getFirestore,
-  collection,
-  getDocs,
   doc,
   getDoc,
   setDoc,
+  getDocs,
+  collection,
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
-  authDomain: "prakashsir-quiz-system.firebaseapp.com",
-  projectId: "prakashsir-quiz-system"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_DOMAIN",
+  projectId: "YOUR_PROJECT"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -31,155 +32,236 @@ let timerInterval;
 
 // ================= REGISTER =================
 window.register = async function () {
+
   const emailVal = email.value;
   const passwordVal = password.value;
 
-  const userCredential = await createUserWithEmailAndPassword(auth, emailVal, passwordVal);
-  const user = userCredential.user;
+  const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
 
-  await setDoc(doc(db, "users", user.uid), {
-    email: emailVal,
-    role: "student",
-    approved: false,
-    attempted: false
-  });
+  if(!allowed.exists()){
+    msg.innerText="You are not allowed.";
+    return;
+  }
 
-  msg.innerText = "Registered. Wait for admin approval.";
+  const user = await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
+  await sendEmailVerification(user.user);
+
+  msg.innerText="Verification email sent.";
 };
 
 
 // ================= LOGIN =================
 window.login = async function () {
 
-  const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
-  const user = userCredential.user;
+  const userCred = await signInWithEmailAndPassword(auth,email.value,password.value);
 
-  const userDoc = await getDoc(doc(db, "users", user.uid));
-  const data = userDoc.data();
-
-  if (data.role === "student" && data.approved === false) {
-    document.body.innerHTML = "<h3>Waiting for Admin Approval</h3>";
+  if(!userCred.user.emailVerified){
+    msg.innerText="Verify email first.";
     return;
   }
 
-  if (data.role === "student" && data.attempted === true) {
-    document.body.innerHTML = "<h3>You already attempted the quiz</h3>";
-    return;
+  if(userCred.user.email==="YOUR_ADMIN_EMAIL"){
+    loadAdmin();
+  }else{
+    checkExamStatus();
   }
-
-  if (data.role === "admin") loadAdmin();
-  else loadQuiz();
 };
 
 
 // ================= ADMIN PANEL =================
-async function loadAdmin() {
+function loadAdmin(){
 
-  let html = "<h2>Admin Dashboard</h2><h3>Pending Students</h3>";
+document.body.innerHTML=`
+<h2>Admin Dashboard</h2>
 
-  const snapshot = await getDocs(collection(db, "users"));
+<h3>Upload Students Excel</h3>
+<input type="file" id="studentFile">
+<button onclick="uploadStudents()">Upload Students</button>
 
-  snapshot.forEach(docSnap => {
-    const u = docSnap.data();
+<h3>Upload Questions Excel</h3>
+<input type="file" id="questionFile">
+<button onclick="uploadQuestions()">Upload Questions</button>
 
-    if (u.role === "student" && u.approved === false) {
-      html += `
-        <p>${u.email}
-        <button onclick="approveStudent('${docSnap.id}')">Approve</button></p>`;
-    }
-  });
+<hr>
 
-  html += "<h3>Approved Students</h3>";
+<select id="quizSelect">
+<option value="quiz1">Quiz 1</option>
+</select>
 
-  snapshot.forEach(docSnap => {
-    const u = docSnap.data();
-    if (u.role === "student" && u.approved === true) html += `<p>${u.email} ✅</p>`;
-  });
+<input id="duration" placeholder="Duration (minutes)">
 
-  document.body.innerHTML = html;
+<button onclick="startExam()">Start Exam</button>
+<button onclick="stopExam()">Stop Exam</button>
+<button onclick="downloadResults()">Download Results</button>
+
+<p id="adminMsg"></p>
+`;
 }
 
-window.approveStudent = async function (uid) {
-  await updateDoc(doc(db, "users", uid), { approved: true });
-  alert("Approved");
-  loadAdmin();
+
+// ================= BULK STUDENT UPLOAD =================
+window.uploadStudents = async function(){
+
+const file=document.getElementById("studentFile").files[0];
+const reader=new FileReader();
+
+reader.onload=async function(e){
+
+const data=new Uint8Array(e.target.result);
+const workbook=XLSX.read(data,{type:"array"});
+const rows=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+for(const r of rows){
+await setDoc(doc(db,"allowedEmails",r.email),{email:r.email});
+}
+
+alert("Students Uploaded");
+};
+
+reader.readAsArrayBuffer(file);
 };
 
 
+// ================= BULK QUESTIONS UPLOAD =================
+window.uploadQuestions = async function(){
+
+const file=document.getElementById("questionFile").files[0];
+const reader=new FileReader();
+
+reader.onload=async function(e){
+
+const data=new Uint8Array(e.target.result);
+const workbook=XLSX.read(data,{type:"array"});
+const rows=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+let i=1;
+
+for(const r of rows){
+
+await setDoc(doc(db,"quizzes","quiz1","questions","q"+i),{
+question:r.question,
+options:[r.option1,r.option2,r.option3,r.option4],
+answer:r.answer
+});
+
+i++;
+}
+
+alert("Questions Uploaded");
+};
+
+reader.readAsArrayBuffer(file);
+};
+
+
+// ================= START/STOP =================
+window.startExam = async function(){
+
+await setDoc(doc(db,"config","activeQuiz"),{
+quizId:quizSelect.value,
+duration:Number(duration.value),
+status:"running"
+});
+
+adminMsg.innerText="Exam Started";
+};
+
+window.stopExam = async function(){
+await updateDoc(doc(db,"config","activeQuiz"),{status:"stopped"});
+adminMsg.innerText="Exam Stopped";
+};
+
+
+// ================= CHECK STATUS =================
+async function checkExamStatus(){
+
+const cfg=await getDoc(doc(db,"config","activeQuiz"));
+const data=cfg.data();
+
+if(data.status!=="running"){
+document.body.innerHTML="<h3>Exam not started</h3>";
+return;
+}
+
+loadQuiz(data.quizId,data.duration);
+}
+
+
 // ================= LOAD QUIZ =================
-async function loadQuiz() {
+async function loadQuiz(quizId,duration){
 
-  document.body.innerHTML = "<h2 id='timer'></h2><h3>Loading Quiz...</h3>";
+document.body.innerHTML="<h2 id='timer'></h2><div id='quiz'></div>";
 
-  startTimer(30); // 30 minutes
+startTimer(duration);
 
-  const snapshot = await getDocs(collection(db, "quizzes/quiz1/questions"));
+const snap=await getDocs(collection(db,"quizzes",quizId,"questions"));
 
-  let html = "<h2 id='timer'></h2>";
+let html="";
 
-  snapshot.forEach(docSnap => {
-    const q = docSnap.data();
-    questions.push({ id: docSnap.id, ...q });
+snap.forEach(d=>{
+const q=d.data();
+questions.push(q);
 
-    html += `
-      <p><b>${q.question}</b></p>
-      <label><input type="radio" name="${docSnap.id}" value="${q.option1}">${q.option1}</label><br>
-      <label><input type="radio" name="${docSnap.id}" value="${q.option2}">${q.option2}</label><br>
-      <label><input type="radio" name="${docSnap.id}" value="${q.option3}">${q.option3}</label><br>
-      <label><input type="radio" name="${docSnap.id}" value="${q.option4}">${q.option4}</label><br><br>
-    `;
-  });
+html+=`
+<p><b>${q.question}</b></p>
+${q.options.map(o=>`<label><input type="radio" name="${q.question}" value="${o}">${o}</label><br>`).join("")}
+<br>`;
+});
 
-  html += `<button onclick="submitQuiz()">Submit</button>`;
-  document.body.innerHTML = html;
+html+=`<button onclick="submitQuiz()">Submit</button>`;
+quiz.innerHTML=html;
 }
 
 
 // ================= TIMER =================
-function startTimer(minutes) {
+function startTimer(minutes){
+let t=minutes*60;
 
-  let time = minutes * 60;
-
-  timerInterval = setInterval(() => {
-
-    const min = Math.floor(time / 60);
-    const sec = time % 60;
-
-    const timerEl = document.getElementById("timer");
-    if (timerEl) timerEl.innerText = `Time Left: ${min}:${sec}`;
-
-    time--;
-
-    if (time <= 0) {
-      clearInterval(timerInterval);
-      submitQuiz();
-    }
-
-  }, 1000);
+timerInterval=setInterval(()=>{
+const m=Math.floor(t/60);
+const s=t%60;
+timer.innerText=`Time Left: ${m}:${s}`;
+t--;
+if(t<=0){clearInterval(timerInterval);submitQuiz();}
+},1000);
 }
 
 
 // ================= SUBMIT =================
-window.submitQuiz = async function () {
+window.submitQuiz = async function(){
 
-  clearInterval(timerInterval);
+clearInterval(timerInterval);
 
-  let score = 0;
+let score=0;
 
-  questions.forEach(q => {
-    const selected = document.querySelector(`input[name="${q.id}"]:checked`);
-    if (selected && selected.value === q.answer) score++;
-  });
+questions.forEach(q=>{
+const ans=document.querySelector(`input[name="${q.question}"]:checked`);
+if(ans && ans.value===q.answer) score++;
+});
 
-  const user = auth.currentUser;
+await setDoc(doc(db,"results",auth.currentUser.uid),{
+email:auth.currentUser.email,
+score,
+total:questions.length
+});
 
-  await setDoc(doc(db, "results", user.uid), {
-    email: user.email,
-    score: score,
-    total: questions.length
-  });
+document.body.innerHTML=`<h2>Submitted</h2><h3>Score ${score}</h3>`;
+};
 
-  await updateDoc(doc(db, "users", user.uid), { attempted: true });
 
-  document.body.innerHTML = `<h2>Submitted</h2><h3>Score: ${score}/${questions.length}</h3>`;
+// ================= DOWNLOAD RESULTS =================
+window.downloadResults = async function(){
+
+const snap=await getDocs(collection(db,"results"));
+const rows=[["Email","Score","Total"]];
+
+snap.forEach(d=>{
+const r=d.data();
+rows.push([r.email,r.score,r.total]);
+});
+
+const ws=XLSX.utils.aoa_to_sheet(rows);
+const wb=XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb,ws,"Results");
+XLSX.writeFile(wb,"results.xlsx");
 };
