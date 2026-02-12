@@ -16,10 +16,12 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+
+// 🔴 PUT YOUR REAL CONFIG HERE
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_DOMAIN",
-  projectId: "YOUR_PROJECT"
+  apiKey: "PASTE_API_KEY",
+  authDomain: "prakashsir-quiz-system.firebaseapp.com",
+  projectId: "prakashsir-quiz-system"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -32,38 +34,44 @@ let timerInterval;
 
 // ================= REGISTER =================
 window.register = async function () {
+  try {
+    const emailVal = email.value;
+    const passwordVal = password.value;
 
-  const emailVal = email.value;
-  const passwordVal = password.value;
+    const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
 
-  const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
+    if(!allowed.exists()){
+      msg.innerText="You are not allowed.";
+      return;
+    }
 
-  if(!allowed.exists()){
-    msg.innerText="You are not allowed.";
-    return;
+    const user = await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
+    await sendEmailVerification(user.user);
+
+    msg.innerText="Verification email sent.";
+  } catch(e){
+    msg.innerText=e.message;
   }
-
-  const user = await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
-  await sendEmailVerification(user.user);
-
-  msg.innerText="Verification email sent.";
 };
 
 
 // ================= LOGIN =================
 window.login = async function () {
+  try{
+    const userCred = await signInWithEmailAndPassword(auth,email.value,password.value);
 
-  const userCred = await signInWithEmailAndPassword(auth,email.value,password.value);
+    if(!userCred.user.emailVerified){
+      msg.innerText="Verify email first.";
+      return;
+    }
 
-  if(!userCred.user.emailVerified){
-    msg.innerText="Verify email first.";
-    return;
-  }
-
-  if(userCred.user.email==="YOUR_ADMIN_EMAIL"){
-    loadAdmin();
-  }else{
-    checkExamStatus();
+    if(userCred.user.email==="YOUR_ADMIN_EMAIL"){
+      loadAdmin();
+    }else{
+      checkExamStatus();
+    }
+  }catch(e){
+    msg.innerText=e.message;
   }
 };
 
@@ -76,11 +84,11 @@ document.body.innerHTML=`
 
 <h3>Upload Students Excel</h3>
 <input type="file" id="studentFile">
-<button onclick="uploadStudents()">Upload Students</button>
+<button onclick="uploadStudents()">Upload</button>
 
 <h3>Upload Questions Excel</h3>
 <input type="file" id="questionFile">
-<button onclick="uploadQuestions()">Upload Questions</button>
+<button onclick="uploadQuestions()">Upload</button>
 
 <hr>
 
@@ -99,14 +107,15 @@ document.body.innerHTML=`
 }
 
 
-// ================= BULK STUDENT UPLOAD =================
+// ================= STUDENT EXCEL UPLOAD =================
 window.uploadStudents = async function(){
 
 const file=document.getElementById("studentFile").files[0];
+if(!file){alert("Select file");return;}
+
 const reader=new FileReader();
 
 reader.onload=async function(e){
-
 const data=new Uint8Array(e.target.result);
 const workbook=XLSX.read(data,{type:"array"});
 const rows=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
@@ -122,10 +131,12 @@ reader.readAsArrayBuffer(file);
 };
 
 
-// ================= BULK QUESTIONS UPLOAD =================
+// ================= QUESTIONS UPLOAD =================
 window.uploadQuestions = async function(){
 
 const file=document.getElementById("questionFile").files[0];
+if(!file){alert("Select file");return;}
+
 const reader=new FileReader();
 
 reader.onload=async function(e){
@@ -154,7 +165,7 @@ reader.readAsArrayBuffer(file);
 };
 
 
-// ================= START/STOP =================
+// ================= START EXAM =================
 window.startExam = async function(){
 
 await setDoc(doc(db,"config","activeQuiz"),{
@@ -166,13 +177,15 @@ status:"running"
 adminMsg.innerText="Exam Started";
 };
 
+
+// ================= STOP =================
 window.stopExam = async function(){
 await updateDoc(doc(db,"config","activeQuiz"),{status:"stopped"});
 adminMsg.innerText="Exam Stopped";
 };
 
 
-// ================= CHECK STATUS =================
+// ================= CHECK =================
 async function checkExamStatus(){
 
 const cfg=await getDoc(doc(db,"config","activeQuiz"));
@@ -249,7 +262,7 @@ document.body.innerHTML=`<h2>Submitted</h2><h3>Score ${score}</h3>`;
 };
 
 
-// ================= DOWNLOAD RESULTS =================
+// ================= DOWNLOAD =================
 window.downloadResults = async function(){
 
 const snap=await getDocs(collection(db,"results"));
