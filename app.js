@@ -15,7 +15,8 @@ import {
   setDoc,
   getDocs,
   collection,
-  updateDoc
+  updateDoc,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
@@ -37,6 +38,8 @@ const db = getFirestore(app);
 
 let questions = [];
 let timerInterval;
+let examListener;
+let currentQuizId = null;
 
 
 // ================= REGISTER =================
@@ -51,7 +54,6 @@ window.register = async function(){
   }
 
   const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
-
   if(!allowed.exists()){
     msg.innerText = "You are not allowed.";
     return;
@@ -62,27 +64,26 @@ window.register = async function(){
     await sendEmailVerification(user.user);
     msg.innerText = "Verification email sent. Verify before login.";
   }catch(e){
-    if(e.code==="auth/email-already-in-use"){
-      msg.innerText="Already registered. Please login.";
+    if(e.code === "auth/email-already-in-use"){
+      msg.innerText = "Already registered. Please login.";
     }else{
-      msg.innerText=e.message;
+      msg.innerText = e.message;
     }
   }
 };
 
 
 // ================= LOGIN =================
-window.login = async function () {
-  try{
+window.login = async function(){
 
+  try{
     const emailVal = email.value.trim();
     const passwordVal = password.value;
 
-    // 🔥 ADMIN LOGIN (bypass whitelist)
+    // 🔥 ADMIN LOGIN
     if(emailVal === "prakash4snu@gmail.com"){
-
-      const userCred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
-      const user = userCred.user;
+      const cred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
+      const user = cred.user;
 
       const userRef = doc(db,"users",user.uid);
       const userDoc = await getDoc(userRef);
@@ -99,19 +100,18 @@ window.login = async function () {
       return;
     }
 
-    // ✅ STUDENT must be in allowedEmails
+    // 🔥 STUDENT LOGIN
     const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
-
     if(!allowed.exists()){
-      msg.innerText="This email is not allowed.";
+      msg.innerText = "This email is not allowed.";
       return;
     }
 
-    const userCred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
-    const user = userCred.user;
+    const cred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
+    const user = cred.user;
 
     if(!user.emailVerified){
-      msg.innerText="Please verify your email before login.";
+      msg.innerText = "Please verify your email before login.";
       return;
     }
 
@@ -127,13 +127,17 @@ window.login = async function () {
       });
     }
 
-    checkExamStatus();
+    if(userDoc.exists() && userDoc.data().attempted === true){
+      document.body.innerHTML="<h3>You already attempted this exam</h3>";
+      return;
+    }
+
+    listenExamStatus();
 
   }catch(e){
-    msg.innerText="Invalid email or password.";
+    msg.innerText = "Invalid email or password.";
   }
 };
-
 
 
 // ================= RESET PASSWORD =================
@@ -147,199 +151,190 @@ window.resetPassword = async function(){
 };
 
 
+// ================= REALTIME EXAM STATUS =================
+function listenExamStatus(){
+
+  const configRef = doc(db,"config","activeQuiz");
+
+  examListener = onSnapshot(configRef,(snap)=>{
+
+    if(!snap.exists()){
+      document.body.innerHTML="<h3>Exam not started</h3>";
+      return;
+    }
+
+    const data = snap.data();
+
+    if(data.status === "running"){
+      loadQuiz(data.quizId,data.duration);
+    }else{
+      clearInterval(timerInterval);
+      document.body.innerHTML="<h3>Exam stopped by admin</h3>";
+    }
+
+  });
+}
+
+
 // ================= ADMIN PANEL =================
-function loadAdmin(){
-document.body.innerHTML=`
-<h2>Admin Dashboard</h2>
+async function loadAdmin(){
 
-<h3>Upload Students Excel</h3>
-<input type="file" id="studentFile">
-<button onclick="uploadStudents()">Upload Students</button>
+  const quizSnap = await getDocs(collection(db,"quizzes"));
+  let quizOptions = "";
 
-<h3>Upload Questions Excel</h3>
-<input type="file" id="questionFile">
-<button onclick="uploadQuestions()">Upload Questions</button>
+  quizSnap.forEach(d=>{
+    quizOptions += `<option value="${d.id}">${d.id}</option>`;
+  });
 
-<hr>
+  document.body.innerHTML=`
+  <h2>Admin Dashboard</h2>
 
-<input id="duration" placeholder="Duration (minutes)">
+  <h3>Select Quiz</h3>
+  <select id="quizSelect">${quizOptions}</select>
 
-<button onclick="startExam()">Start Exam</button>
-<button onclick="stopExam()">Stop Exam</button>
-<button onclick="downloadResults()">Download Results</button>
-`;
+  <h3>Duration (minutes)</h3>
+  <input id="duration" type="number" placeholder="Enter duration">
+
+  <button onclick="startExam()">Start Exam</button>
+  <button onclick="stopExam()">Stop Exam</button>
+
+  <hr>
+
+  <input type="file" id="studentFile">
+  <button onclick="uploadStudents()">Upload Students</button>
+
+  <input type="file" id="questionFile">
+  <button onclick="uploadQuestions()">Upload Questions</button>
+
+  <hr>
+
+  <button onclick="downloadResults()">Download Results</button>
+  `;
 }
-
-
-// ================= UPLOAD STUDENTS =================
-window.uploadStudents = async function(){
-
-const file=document.getElementById("studentFile").files[0];
-if(!file){ alert("Select file"); return; }
-
-const reader=new FileReader();
-
-reader.onload=async function(e){
-
-const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
-const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-
-for(const r of rows){
-await setDoc(doc(db,"allowedEmails",r.email),{email:r.email});
-}
-
-alert("Students uploaded");
-};
-
-reader.readAsArrayBuffer(file);
-};
-
-
-// ================= UPLOAD QUESTIONS =================
-window.uploadQuestions = async function(){
-
-const file=document.getElementById("questionFile").files[0];
-if(!file){ alert("Select file"); return; }
-
-const reader=new FileReader();
-
-reader.onload=async function(e){
-
-const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
-const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-
-let i=1;
-for(const r of rows){
-await setDoc(doc(db,"quizzes","quiz1","questions","q"+i),r);
-i++;
-}
-
-alert("Questions uploaded");
-};
-
-reader.readAsArrayBuffer(file);
-};
 
 
 // ================= START EXAM =================
 window.startExam = async function(){
-await setDoc(doc(db,"config","activeQuiz"),{
-quizId:"quiz1",
-duration:Number(duration.value),
-status:"running"
-});
-alert("Exam started");
+
+  const quizId = quizSelect.value;
+  const durationVal = Number(duration.value);
+
+  if(!quizId || !durationVal || durationVal <= 0){
+    alert("Select quiz and valid duration");
+    return;
+  }
+
+  await setDoc(doc(db,"config","activeQuiz"),{
+    quizId,
+    duration: durationVal,
+    status:"running",
+    startedAt:new Date().toISOString()
+  });
+
+  alert("Exam Started");
 };
 
 
 // ================= STOP EXAM =================
 window.stopExam = async function(){
-await updateDoc(doc(db,"config","activeQuiz"),{status:"stopped"});
-alert("Exam stopped");
+  await updateDoc(doc(db,"config","activeQuiz"),{status:"stopped"});
+  alert("Exam Stopped");
 };
-
-
-// ================= CHECK STATUS =================
-async function checkExamStatus(){
-
-const cfg=await getDoc(doc(db,"config","activeQuiz"));
-
-if(!cfg.exists() || cfg.data().status!=="running"){
-document.body.innerHTML="<h3>Exam not started</h3>";
-return;
-}
-
-loadQuiz(cfg.data().quizId,cfg.data().duration);
-}
 
 
 // ================= LOAD QUIZ =================
 async function loadQuiz(quizId,duration){
 
-document.body.innerHTML="<h2 id='timer'></h2><div id='quiz'></div>";
-startTimer(duration);
+  clearInterval(timerInterval);
+  questions=[];
+  currentQuizId = quizId;
 
-questions = []; // clear old questions
+  document.body.innerHTML="<h2 id='timer'></h2><div id='quiz'></div>";
+  startTimer(duration);
 
-const snap=await getDocs(collection(db,"quizzes",quizId,"questions"));
+  const snap = await getDocs(collection(db,"quizzes",quizId,"questions"));
+  let html="";
 
-let html="";
+  snap.forEach(d=>{
+    const q=d.data();
 
-snap.forEach(d=>{
-const q=d.data();
+    questions.push({
+      id:d.id,
+      answer:q.answer
+    });
 
-questions.push({
-  id:d.id,
-  question:q.question,
-  option1:q.option1,
-  option2:q.option2,
-  option3:q.option3,
-  option4:q.option4,
-  answer:q.answer
-});
+    html+=`
+    <p><b>${q.question}</b></p>
+    <label><input type="radio" name="${d.id}" value="${q.option1}">${q.option1}</label><br>
+    <label><input type="radio" name="${d.id}" value="${q.option2}">${q.option2}</label><br>
+    <label><input type="radio" name="${d.id}" value="${q.option3}">${q.option3}</label><br>
+    <label><input type="radio" name="${d.id}" value="${q.option4}">${q.option4}</label><br><br>
+    `;
+  });
 
-html+=`
-<p><b>${q.question}</b></p>
-<label><input type="radio" name="${d.id}" value="${q.option1}">${q.option1}</label><br>
-<label><input type="radio" name="${d.id}" value="${q.option2}">${q.option2}</label><br>
-<label><input type="radio" name="${d.id}" value="${q.option3}">${q.option3}</label><br>
-<label><input type="radio" name="${d.id}" value="${q.option4}">${q.option4}</label><br><br>
-`;
-});
-
-html+=`<button onclick="submitQuiz()">Submit</button>`;
-document.getElementById("quiz").innerHTML=html;
+  html+=`<button onclick="submitQuiz()">Submit</button>`;
+  quiz.innerHTML=html;
 }
-
 
 
 // ================= TIMER =================
 function startTimer(minutes){
-let t=minutes*60;
 
-timerInterval=setInterval(()=>{
-timer.innerText=`Time Left: ${Math.floor(t/60)}:${t%60}`;
-if(--t<=0){clearInterval(timerInterval);submitQuiz();}
-},1000);
+  let t = minutes * 60;
+
+  timerInterval = setInterval(()=>{
+    timer.innerText=`Time Left: ${Math.floor(t/60)}:${(t%60).toString().padStart(2,"0")}`;
+
+    if(--t <= 0){
+      clearInterval(timerInterval);
+      submitQuiz();
+    }
+  },1000);
 }
 
 
 // ================= SUBMIT =================
 window.submitQuiz = async function(){
 
-clearInterval(timerInterval);
+  clearInterval(timerInterval);
 
-let score=0;
+  let score=0;
 
-questions.forEach(q=>{
-const ans=document.querySelector(`input[name="${q.id}"]:checked`);
-if(ans && ans.value===q.answer) score++;
-});
+  questions.forEach(q=>{
+    const ans=document.querySelector(`input[name="${q.id}"]:checked`);
+    if(ans && ans.value===q.answer) score++;
+  });
 
-await setDoc(doc(db,"results",auth.currentUser.uid),{
-email:auth.currentUser.email,
-score,
-total:questions.length
-});
+  await setDoc(doc(db,"results",auth.currentUser.uid),{
+    email:auth.currentUser.email,
+    quizId:currentQuizId,
+    score,
+    total:questions.length,
+    submittedAt:new Date().toISOString()
+  });
 
-document.body.innerHTML=`<h2>Submitted</h2><h3>Score ${score}/${questions.length}</h3>`;
+  await updateDoc(doc(db,"users",auth.currentUser.uid),{attempted:true});
+
+  document.body.innerHTML=`
+  <h2>Test Submitted Successfully</h2>
+  <h3>Your Score: ${score}/${questions.length}</h3>
+  `;
 };
-
 
 
 // ================= DOWNLOAD RESULTS =================
 window.downloadResults = async function(){
 
-const snap=await getDocs(collection(db,"results"));
-const rows=[["Email","Score","Total"]];
+  const snap = await getDocs(collection(db,"results"));
+  const rows=[["Email","Quiz","Score","Total","Time"]];
 
-snap.forEach(d=>{
-const r=d.data();
-rows.push([r.email,r.score,r.total]);
-});
+  snap.forEach(d=>{
+    const r=d.data();
+    rows.push([r.email,r.quizId,r.score,r.total,r.submittedAt]);
+  });
 
-const ws=XLSX.utils.aoa_to_sheet(rows);
-const wb=XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(wb,ws,"Results");
-XLSX.writeFile(wb,"results.xlsx");
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Results");
+  XLSX.writeFile(wb,"results.xlsx");
 };
