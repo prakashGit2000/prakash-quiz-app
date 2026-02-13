@@ -145,6 +145,13 @@ async function submitQuiz(user){
 });
 window.userData.attempted = true;
 
-
+// 148-155 manually added by me
   quiz.innerHTML=`<h2>Submitted</h2><h3>Score: ${score}/${questions.length}</h3>`;
+
+  document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){
+    alert("Tab switching is not allowed!");
+  }
+});
+
 }
