@@ -112,16 +112,24 @@ window.manualSubmit = function(){
   submitQuiz(auth.currentUser);
 };
 
-async function submitQuiz(user){
+
+
+  quiz.innerHTML=`<h2>Submitted</h2><h3>Score: ${score}/${questions.length}</h3>`;
+
+  document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){
+    alert("Tab switching is not allowed!");
+  }
+});
+
+
 async function submitQuiz(user){
 
-  // 🚫 Prevent multiple submission
   if(window.userData && window.userData.attempted === true){
-    alert("You have already submitted.");
+    alert("Already submitted.");
     return;
   }
 
-  
   clearInterval(timerInterval);
 
   let score=0;
@@ -139,19 +147,19 @@ async function submitQuiz(user){
   });
 
   await updateDoc(doc(db,"users",user.uid),{
-  status:"submitted",
-  attempted:true,
-  score:score
-});
-window.userData.attempted = true;
+    status:"submitted",
+    attempted:true,
+    score:score
+  });
 
-// 148-155 manually added by me
-  quiz.innerHTML=`<h2>Submitted</h2><h3>Score: ${score}/${questions.length}</h3>`;
+  window.userData.attempted = true;
 
-  document.addEventListener("visibilitychange",()=>{
-  if(document.hidden){
-    alert("Tab switching is not allowed!");
-  }
-});
+  quiz.innerHTML=`
+    <h2>Submitted Successfully</h2>
+    <h3>Score: ${score}/${questions.length}</h3>
+  `;
 
+  setTimeout(()=>{
+    window.location.href="index.html";
+  },5000);
 }
