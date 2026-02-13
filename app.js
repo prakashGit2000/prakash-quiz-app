@@ -72,24 +72,46 @@ window.register = async function(){
 
 
 // ================= LOGIN =================
-window.login = async function(){
-
-  const emailVal = email.value.trim();
-  const passwordVal = password.value;
-
-  const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
-  if(!allowed.exists()){
-    msg.innerText="Email not allowed.";
-    return;
-  }
-
+window.login = async function () {
   try{
+
+    const emailVal = email.value.trim();
+    const passwordVal = password.value;
+
+    // 🔥 ADMIN LOGIN (bypass whitelist)
+    if(emailVal === "prakash4snu@gmail.com"){
+
+      const userCred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
+      const user = userCred.user;
+
+      const userRef = doc(db,"users",user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if(!userDoc.exists()){
+        await setDoc(userRef,{
+          email:user.email,
+          role:"admin",
+          createdAt:new Date().toISOString()
+        });
+      }
+
+      loadAdmin();
+      return;
+    }
+
+    // ✅ STUDENT must be in allowedEmails
+    const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
+
+    if(!allowed.exists()){
+      msg.innerText="This email is not allowed.";
+      return;
+    }
 
     const userCred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
     const user = userCred.user;
 
     if(!user.emailVerified){
-      msg.innerText="Verify email before login.";
+      msg.innerText="Please verify your email before login.";
       return;
     }
 
@@ -99,20 +121,19 @@ window.login = async function(){
     if(!userDoc.exists()){
       await setDoc(userRef,{
         email:user.email,
-        role:(user.email==="prakash4snu@gmail.com")?"admin":"student",
+        role:"student",
+        attempted:false,
         createdAt:new Date().toISOString()
       });
     }
 
-    const data = (await getDoc(userRef)).data();
-
-    if(data.role==="admin") loadAdmin();
-    else checkExamStatus();
+    checkExamStatus();
 
   }catch(e){
-    msg.innerText="Invalid login credentials.";
+    msg.innerText="Invalid email or password.";
   }
 };
+
 
 
 // ================= RESET PASSWORD =================
