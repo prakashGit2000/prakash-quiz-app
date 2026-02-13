@@ -26,142 +26,168 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 let timerInterval;
-let questions=[];
-let currentQuizId=null;
+let questions = [];
+let currentQuizId = null;
 
-auth.onAuthStateChanged(async user=>{
-  if(!user){
-    window.location.href="index.html";
+
+// ================= AUTH CHECK =================
+auth.onAuthStateChanged(async user => {
+
+  if (!user) {
+    window.location.href = "index.html";
     return;
   }
 
-  const userDoc = await getDoc(doc(db,"users",user.uid));
-  window.userData = userDoc.data();   // 👈 ADD THIS
+  const userDoc = await getDoc(doc(db, "users", user.uid));
+  window.userData = userDoc.data();
+
+  if (window.userData?.attempted === true) {
+    quiz.innerHTML = "<h2>You already attempted this exam</h2>";
+    return;
+  }
 
   listenExam(user);
 });
 
 
-function listenExam(user){
+// ================= REALTIME EXAM LISTENER =================
+function listenExam(user) {
 
-  const examRef=doc(db,"examSessions","activeExam");
+  const examRef = doc(db, "examSessions", "activeExam");
 
-  onSnapshot(examRef,async snap=>{
+  onSnapshot(examRef, async snap => {
 
-    if(!snap.exists()){
-      examTitle.innerText="No active exam";
+    if (!snap.exists()) {
+      examTitle.innerText = "No active exam";
       return;
     }
 
-    const data=snap.data();
+    const data = snap.data();
 
-    if(data.status==="running" && data.allowedStudents.includes(user.uid)){
-      loadQuiz(user,data.quizId,data.duration);
+    if (
+      data.status === "running" &&
+      data.allowedStudents?.includes(user.uid)
+    ) {
+      loadQuiz(user, data.quizId, data.duration);
     }
 
-    if(data.status==="stopped"){
+    if (data.status === "stopped") {
       submitQuiz(user);
     }
-
   });
 }
 
-async function loadQuiz(user,quizId,duration){
 
-  currentQuizId=quizId;
-  questions=[];
+// ================= LOAD QUIZ =================
+async function loadQuiz(user, quizId, duration) {
+
+  currentQuizId = quizId;
+  questions = [];
   clearInterval(timerInterval);
 
-  const snap=await getDocs(collection(db,"quizzes",quizId,"questions"));
+  const snap = await getDocs(collection(db, "quizzes", quizId, "questions"));
 
-  let html="";
-  snap.forEach(d=>{
-    const q=d.data();
-    questions.push({id:d.id,answer:q.answer});
+  let html = "";
 
-    html+=`
+  snap.forEach(d => {
+
+    const q = d.data();
+
+    questions.push({
+      id: d.id,
+      answer: q.answer
+    });
+
+    html += `
       <h3>${q.question}</h3>
-      <label><input type="radio" name="${d.id}" value="${q.option1}">${q.option1}</label><br>
-      <label><input type="radio" name="${d.id}" value="${q.option2}">${q.option2}</label><br>
-      <label><input type="radio" name="${d.id}" value="${q.option3}">${q.option3}</label><br>
-      <label><input type="radio" name="${d.id}" value="${q.option4}">${q.option4}</label><br><br>
+      <label><input type="radio" name="${d.id}" value="${q.option1}"> ${q.option1}</label><br>
+      <label><input type="radio" name="${d.id}" value="${q.option2}"> ${q.option2}</label><br>
+      <label><input type="radio" name="${d.id}" value="${q.option3}"> ${q.option3}</label><br>
+      <label><input type="radio" name="${d.id}" value="${q.option4}"> ${q.option4}</label><br><br>
     `;
   });
 
-  html+=`<button onclick="manualSubmit()">Submit</button>`;
+  html += `<button onclick="manualSubmit()">Submit</button>`;
 
-  quiz.innerHTML=html;
+  quiz.innerHTML = html;
 
-  startTimer(user,duration);
+  startTimer(user, duration);
 }
 
-function startTimer(user,minutes){
 
-  let t=minutes*60;
+// ================= TIMER =================
+function startTimer(user, minutes) {
 
-  timerInterval=setInterval(()=>{
-    timer.innerText=`Time Left: ${Math.floor(t/60)}:${t%60}`;
-    if(--t<=0){
+  let t = minutes * 60;
+
+  timerInterval = setInterval(() => {
+
+    timer.innerText = `Time Left: ${Math.floor(t / 60)}:${t % 60}`;
+
+    if (--t <= 0) {
       clearInterval(timerInterval);
       submitQuiz(user);
     }
-  },1000);
+
+  }, 1000);
 }
 
-window.manualSubmit = function(){
+
+// ================= MANUAL SUBMIT =================
+window.manualSubmit = function () {
   submitQuiz(auth.currentUser);
 };
 
 
+// ================= SUBMIT QUIZ =================
+async function submitQuiz(user) {
 
-  quiz.innerHTML=`<h2>Submitted</h2><h3>Score: ${score}/${questions.length}</h3>`;
+  if (!user) return;
 
-  document.addEventListener("visibilitychange",()=>{
-  if(document.hidden){
-    alert("Tab switching is not allowed!");
-  }
-});
-
-
-async function submitQuiz(user){
-
-  if(window.userData && window.userData.attempted === true){
+  if (window.userData?.attempted === true) {
     alert("Already submitted.");
     return;
   }
 
   clearInterval(timerInterval);
 
-  let score=0;
+  let score = 0;
 
-  questions.forEach(q=>{
-    const ans=document.querySelector(`input[name="${q.id}"]:checked`);
-    if(ans && ans.value===q.answer) score++;
+  questions.forEach(q => {
+    const ans = document.querySelector(`input[name="${q.id}"]:checked`);
+    if (ans && ans.value === q.answer) score++;
   });
 
-  await setDoc(doc(db,"results",user.uid),{
-    email:user.email,
-    quizId:currentQuizId,
+  await setDoc(doc(db, "results", user.uid), {
+    email: user.email,
+    quizId: currentQuizId,
     score,
-    total:questions.length,
-    submittedAt:new Date().toISOString()
+    total: questions.length,
+    submittedAt: new Date().toISOString()
   });
 
-  await updateDoc(doc(db,"users",user.uid),{
-    status:"submitted",
-    attempted:true,
-    score:score
+  await updateDoc(doc(db, "users", user.uid), {
+    status: "submitted",
+    attempted: true,
+    score: score
   });
 
-  // 👇 ADD IT HERE
   window.userData.attempted = true;
 
-  quiz.innerHTML=`
+  quiz.innerHTML = `
     <h2>Submitted Successfully</h2>
     <h3>Score: ${score}/${questions.length}</h3>
   `;
 
-  setTimeout(()=>{
-    window.location.href="index.html";
-  },5000);
+  setTimeout(() => {
+    window.location.href = "index.html";
+  }, 5000);
 }
+
+
+// ================= TAB SWITCH DETECTION =================
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    alert("Tab switching is not allowed!");
+  }
+});
