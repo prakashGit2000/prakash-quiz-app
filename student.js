@@ -41,10 +41,11 @@ auth.onAuthStateChanged(async user => {
   const userDoc = await getDoc(doc(db, "users", user.uid));
   window.userData = userDoc.data();
 
-  if (window.userData?.attempted === true) {
-    quiz.innerHTML = "<h2>You already attempted this exam</h2>";
-    return;
-  }
+  if (window.userData?.attempts?.[currentQuizId] === true) {
+  alert("You already attempted this quiz.");
+  return;
+}
+
 
   listenExam(user);
 });
@@ -80,6 +81,11 @@ function listenExam(user) {
 
 // ================= LOAD QUIZ =================
 async function loadQuiz(user, quizId, duration) {
+  
+  if (window.userData?.attempts?.[quizId] === true) {
+   quiz.innerHTML = "<h2>You already attempted this quiz</h2>";
+   return;
+}
 
   currentQuizId = quizId;
   questions = [];
@@ -166,13 +172,18 @@ async function submitQuiz(user) {
     submittedAt: new Date().toISOString()
   });
 
-  await updateDoc(doc(db, "users", user.uid), {
-    status: "submitted",
-    attempted: true,
-    score: score
-  });
+ await updateDoc(doc(db, "users", user.uid), {
+  status: "submitted",
+  [`attempts.${currentQuizId}`]: true,
+  score: score
+});
 
-  window.userData.attempted = true;
+
+  if(!window.userData.attempts){
+   window.userData.attempts = {};
+}
+window.userData.attempts[currentQuizId] = true;
+
 
   quiz.innerHTML = `
     <h2>Submitted Successfully</h2>
