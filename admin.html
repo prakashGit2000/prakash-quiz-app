@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark">
+
+<div class="dashboard">
+  <div class="sidebar">
+    <h3>Admin Panel</h3>
+    <button onclick="loadQuizManager()">Quiz Manager</button>
+    <button onclick="loadStudentManager()">Students</button>
+    <button onclick="loadExamControl()">Exam Control</button>
+    <button onclick="downloadResults()">Download Results</button>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <div class="content" id="adminContent">
+    <h2>Welcome Admin</h2>
+  </div>
+</div>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>
