@@ -1,25 +1,4 @@
-// ================= FIREBASE IMPORTS =================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendEmailVerification,
-  sendPasswordResetEmail
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  getDocs,
-  collection,
-  updateDoc,
-  onSnapshot
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-
+app.js
 
 // ================= FIREBASE IMPORTS =================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -158,6 +137,7 @@ window.login = async function () {
 };
 
 
+
 // ================= RESET PASSWORD =================
 window.resetPassword = async function(){
   try{
@@ -169,190 +149,199 @@ window.resetPassword = async function(){
 };
 
 
-// ================= REALTIME EXAM STATUS =================
-function listenExamStatus(){
-
-  const configRef = doc(db,"config","activeQuiz");
-
-  examListener = onSnapshot(configRef,(snap)=>{
-
-    if(!snap.exists()){
-      document.body.innerHTML="<h3>Exam not started</h3>";
-      return;
-    }
-
-    const data = snap.data();
-
-    if(data.status === "running"){
-      loadQuiz(data.quizId,data.duration);
-    }else{
-      clearInterval(timerInterval);
-      document.body.innerHTML="<h3>Exam stopped by admin</h3>";
-    }
-
-  });
-}
-
-
 // ================= ADMIN PANEL =================
-async function loadAdmin(){
+function loadAdmin(){
+document.body.innerHTML=`
+<h2>Admin Dashboard</h2>
 
-  const quizSnap = await getDocs(collection(db,"quizzes"));
-  let quizOptions = "";
+<h3>Upload Students Excel</h3>
+<input type="file" id="studentFile">
+<button onclick="uploadStudents()">Upload Students</button>
 
-  quizSnap.forEach(d=>{
-    quizOptions += `<option value="${d.id}">${d.id}</option>`;
-  });
+<h3>Upload Questions Excel</h3>
+<input type="file" id="questionFile">
+<button onclick="uploadQuestions()">Upload Questions</button>
 
-  document.body.innerHTML=`
-  <h2>Admin Dashboard</h2>
+<hr>
 
-  <h3>Select Quiz</h3>
-  <select id="quizSelect">${quizOptions}</select>
+<input id="duration" placeholder="Duration (minutes)">
 
-  <h3>Duration (minutes)</h3>
-  <input id="duration" type="number" placeholder="Enter duration">
-
-  <button onclick="startExam()">Start Exam</button>
-  <button onclick="stopExam()">Stop Exam</button>
-
-  <hr>
-
-  <input type="file" id="studentFile">
-  <button onclick="uploadStudents()">Upload Students</button>
-
-  <input type="file" id="questionFile">
-  <button onclick="uploadQuestions()">Upload Questions</button>
-
-  <hr>
-
-  <button onclick="downloadResults()">Download Results</button>
-  `;
+<button onclick="startExam()">Start Exam</button>
+<button onclick="stopExam()">Stop Exam</button>
+<button onclick="downloadResults()">Download Results</button>
+`;
 }
+
+
+// ================= UPLOAD STUDENTS =================
+window.uploadStudents = async function(){
+
+const file=document.getElementById("studentFile").files[0];
+if(!file){ alert("Select file"); return; }
+
+const reader=new FileReader();
+
+reader.onload=async function(e){
+
+const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+for(const r of rows){
+await setDoc(doc(db,"allowedEmails",r.email),{email:r.email});
+}
+
+alert("Students uploaded");
+};
+
+reader.readAsArrayBuffer(file);
+};
+
+
+// ================= UPLOAD QUESTIONS =================
+window.uploadQuestions = async function(){
+
+const file=document.getElementById("questionFile").files[0];
+if(!file){ alert("Select file"); return; }
+
+const reader=new FileReader();
+
+reader.onload=async function(e){
+
+const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+let i=1;
+for(const r of rows){
+await setDoc(doc(db,"quizzes","quiz1","questions","q"+i),r);
+i++;
+}
+
+alert("Questions uploaded");
+};
+
+reader.readAsArrayBuffer(file);
+};
 
 
 // ================= START EXAM =================
 window.startExam = async function(){
-
-  const quizId = quizSelect.value;
-  const durationVal = Number(duration.value);
-
-  if(!quizId || !durationVal || durationVal <= 0){
-    alert("Select quiz and valid duration");
-    return;
-  }
-
-  await setDoc(doc(db,"config","activeQuiz"),{
-    quizId,
-    duration: durationVal,
-    status:"running",
-    startedAt:new Date().toISOString()
-  });
-
-  alert("Exam Started");
+await setDoc(doc(db,"config","activeQuiz"),{
+quizId:"quiz1",
+duration:Number(duration.value),
+status:"running"
+});
+alert("Exam started");
 };
 
 
 // ================= STOP EXAM =================
 window.stopExam = async function(){
-  await updateDoc(doc(db,"config","activeQuiz"),{status:"stopped"});
-  alert("Exam Stopped");
+await updateDoc(doc(db,"config","activeQuiz"),{status:"stopped"});
+alert("Exam stopped");
 };
+
+
+// ================= CHECK STATUS =================
+async function checkExamStatus(){
+
+const cfg=await getDoc(doc(db,"config","activeQuiz"));
+
+if(!cfg.exists() || cfg.data().status!=="running"){
+document.body.innerHTML="<h3>Exam not started</h3>";
+return;
+}
+
+loadQuiz(cfg.data().quizId,cfg.data().duration);
+}
 
 
 // ================= LOAD QUIZ =================
 async function loadQuiz(quizId,duration){
 
-  clearInterval(timerInterval);
-  questions=[];
-  currentQuizId = quizId;
+document.body.innerHTML="<h2 id='timer'></h2><div id='quiz'></div>";
+startTimer(duration);
 
-  document.body.innerHTML="<h2 id='timer'></h2><div id='quiz'></div>";
-  startTimer(duration);
+questions = []; // clear old questions
 
-  const snap = await getDocs(collection(db,"quizzes",quizId,"questions"));
-  let html="";
+const snap=await getDocs(collection(db,"quizzes",quizId,"questions"));
 
-  snap.forEach(d=>{
-    const q=d.data();
+let html="";
 
-    questions.push({
-      id:d.id,
-      answer:q.answer
-    });
+snap.forEach(d=>{
+const q=d.data();
 
-    html+=`
-    <p><b>${q.question}</b></p>
-    <label><input type="radio" name="${d.id}" value="${q.option1}">${q.option1}</label><br>
-    <label><input type="radio" name="${d.id}" value="${q.option2}">${q.option2}</label><br>
-    <label><input type="radio" name="${d.id}" value="${q.option3}">${q.option3}</label><br>
-    <label><input type="radio" name="${d.id}" value="${q.option4}">${q.option4}</label><br><br>
-    `;
-  });
+questions.push({
+  id:d.id,
+  question:q.question,
+  option1:q.option1,
+  option2:q.option2,
+  option3:q.option3,
+  option4:q.option4,
+  answer:q.answer
+});
 
-  html+=`<button onclick="submitQuiz()">Submit</button>`;
-  quiz.innerHTML=html;
+html+=`
+<p><b>${q.question}</b></p>
+<label><input type="radio" name="${d.id}" value="${q.option1}">${q.option1}</label><br>
+<label><input type="radio" name="${d.id}" value="${q.option2}">${q.option2}</label><br>
+<label><input type="radio" name="${d.id}" value="${q.option3}">${q.option3}</label><br>
+<label><input type="radio" name="${d.id}" value="${q.option4}">${q.option4}</label><br><br>
+`;
+});
+
+html+=`<button onclick="submitQuiz()">Submit</button>`;
+document.getElementById("quiz").innerHTML=html;
 }
+
 
 
 // ================= TIMER =================
 function startTimer(minutes){
+let t=minutes*60;
 
-  let t = minutes * 60;
-
-  timerInterval = setInterval(()=>{
-    timer.innerText=`Time Left: ${Math.floor(t/60)}:${(t%60).toString().padStart(2,"0")}`;
-
-    if(--t <= 0){
-      clearInterval(timerInterval);
-      submitQuiz();
-    }
-  },1000);
+timerInterval=setInterval(()=>{
+timer.innerText=`Time Left: ${Math.floor(t/60)}:${t%60}`;
+if(--t<=0){clearInterval(timerInterval);submitQuiz();}
+},1000);
 }
 
 
 // ================= SUBMIT =================
 window.submitQuiz = async function(){
 
-  clearInterval(timerInterval);
+clearInterval(timerInterval);
 
-  let score=0;
+let score=0;
 
-  questions.forEach(q=>{
-    const ans=document.querySelector(`input[name="${q.id}"]:checked`);
-    if(ans && ans.value===q.answer) score++;
-  });
+questions.forEach(q=>{
+const ans=document.querySelector(`input[name="${q.id}"]:checked`);
+if(ans && ans.value===q.answer) score++;
+});
 
-  await setDoc(doc(db,"results",auth.currentUser.uid),{
-    email:auth.currentUser.email,
-    quizId:currentQuizId,
-    score,
-    total:questions.length,
-    submittedAt:new Date().toISOString()
-  });
+await setDoc(doc(db,"results",auth.currentUser.uid),{
+email:auth.currentUser.email,
+score,
+total:questions.length
+});
 
-  await updateDoc(doc(db,"users",auth.currentUser.uid),{attempted:true});
-
-  document.body.innerHTML=`
-  <h2>Test Submitted Successfully</h2>
-  <h3>Your Score: ${score}/${questions.length}</h3>
-  `;
+document.body.innerHTML=`<h2>Submitted</h2><h3>Score ${score}/${questions.length}</h3>`;
 };
+
 
 
 // ================= DOWNLOAD RESULTS =================
 window.downloadResults = async function(){
 
-  const snap = await getDocs(collection(db,"results"));
-  const rows=[["Email","Quiz","Score","Total","Time"]];
+const snap=await getDocs(collection(db,"results"));
+const rows=[["Email","Score","Total"]];
 
-  snap.forEach(d=>{
-    const r=d.data();
-    rows.push([r.email,r.quizId,r.score,r.total,r.submittedAt]);
-  });
+snap.forEach(d=>{
+const r=d.data();
+rows.push([r.email,r.score,r.total]);
+});
 
-  const ws=XLSX.utils.aoa_to_sheet(rows);
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"Results");
-  XLSX.writeFile(wb,"results.xlsx");
+const ws=XLSX.utils.aoa_to_sheet(rows);
+const wb=XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb,ws,"Results");
+XLSX.writeFile(wb,"results.xlsx");
 };
