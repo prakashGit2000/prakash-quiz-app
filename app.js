@@ -20,6 +20,28 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
+
+// ================= FIREBASE IMPORTS =================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  getDocs,
+  collection,
+  updateDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
 // ================= FIREBASE CONFIG =================
 const firebaseConfig = {
   apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
@@ -38,8 +60,6 @@ const db = getFirestore(app);
 
 let questions = [];
 let timerInterval;
-let examListener;
-let currentQuizId = null;
 
 
 // ================= REGISTER =================
@@ -54,6 +74,7 @@ window.register = async function(){
   }
 
   const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
+
   if(!allowed.exists()){
     msg.innerText = "You are not allowed.";
     return;
@@ -64,26 +85,27 @@ window.register = async function(){
     await sendEmailVerification(user.user);
     msg.innerText = "Verification email sent. Verify before login.";
   }catch(e){
-    if(e.code === "auth/email-already-in-use"){
-      msg.innerText = "Already registered. Please login.";
+    if(e.code==="auth/email-already-in-use"){
+      msg.innerText="Already registered. Please login.";
     }else{
-      msg.innerText = e.message;
+      msg.innerText=e.message;
     }
   }
 };
 
 
 // ================= LOGIN =================
-window.login = async function(){
-
+window.login = async function () {
   try{
+
     const emailVal = email.value.trim();
     const passwordVal = password.value;
 
-    // 🔥 ADMIN LOGIN
+    // 🔥 ADMIN LOGIN (bypass whitelist)
     if(emailVal === "prakash4snu@gmail.com"){
-      const cred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
-      const user = cred.user;
+
+      const userCred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
+      const user = userCred.user;
 
       const userRef = doc(db,"users",user.uid);
       const userDoc = await getDoc(userRef);
@@ -100,18 +122,19 @@ window.login = async function(){
       return;
     }
 
-    // 🔥 STUDENT LOGIN
+    // ✅ STUDENT must be in allowedEmails
     const allowed = await getDoc(doc(db,"allowedEmails",emailVal));
+
     if(!allowed.exists()){
-      msg.innerText = "This email is not allowed.";
+      msg.innerText="This email is not allowed.";
       return;
     }
 
-    const cred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
-    const user = cred.user;
+    const userCred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
+    const user = userCred.user;
 
     if(!user.emailVerified){
-      msg.innerText = "Please verify your email before login.";
+      msg.innerText="Please verify your email before login.";
       return;
     }
 
@@ -127,15 +150,10 @@ window.login = async function(){
       });
     }
 
-    if(userDoc.exists() && userDoc.data().attempted === true){
-      document.body.innerHTML="<h3>You already attempted this exam</h3>";
-      return;
-    }
-
-    listenExamStatus();
+    checkExamStatus();
 
   }catch(e){
-    msg.innerText = "Invalid email or password.";
+    msg.innerText="Invalid email or password.";
   }
 };
 
