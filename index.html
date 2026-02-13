@@ -1,27 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Prakash Sir Quiz Portal</title>
+  <title>Exam Portal Login</title>
   <link rel="stylesheet" href="style.css">
 </head>
+<body class="dark">
 
-<body>
+<div class="card center">
+  <h2>Exam Management System</h2>
 
-<div class="card">
-  <h2>Online Quiz System</h2>
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
 
-  <input type="email" id="email" placeholder="Enter Email">
-  <input type="password" id="password" placeholder="Enter Password">
-
-  <button onclick="register()">Register</button>
   <button onclick="login()">Login</button>
+  <button onclick="register()">Register</button>
   <button onclick="resetPassword()">Forgot Password</button>
 
   <p id="msg"></p>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script type="module" src="app.js"></script>
-
 </body>
 </html>
