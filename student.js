@@ -35,8 +35,12 @@ auth.onAuthStateChanged(async user=>{
     return;
   }
 
+  const userDoc = await getDoc(doc(db,"users",user.uid));
+  window.userData = userDoc.data();   // 👈 ADD THIS
+
   listenExam(user);
 });
+
 
 function listenExam(user){
 
@@ -109,7 +113,15 @@ window.manualSubmit = function(){
 };
 
 async function submitQuiz(user){
+async function submitQuiz(user){
 
+  // 🚫 Prevent multiple submission
+  if(window.userData && window.userData.attempted === true){
+    alert("You have already submitted.");
+    return;
+  }
+
+  
   clearInterval(timerInterval);
 
   let score=0;
@@ -127,10 +139,12 @@ async function submitQuiz(user){
   });
 
   await updateDoc(doc(db,"users",user.uid),{
-    status:"submitted",
-    attempted:true,
-    score:score
-  });
+  status:"submitted",
+  attempted:true,
+  score:score
+});
+window.userData.attempted = true;
+
 
   quiz.innerHTML=`<h2>Submitted</h2><h3>Score: ${score}/${questions.length}</h3>`;
 }
