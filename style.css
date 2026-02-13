@@ -1,9 +1,10 @@
 body.dark {
-  background: #121212;
-  color: #fff;
+  background: #ffffff;
+  color: #000000;
   font-family: Arial;
   margin: 0;
 }
+
 
 .card {
   background: #1e1e1e;
