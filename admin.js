@@ -278,3 +278,22 @@ window.downloadResults = async function(){
 };
 
 
+
+
+
+window.resetAttempts = async function(quizId){
+
+  const usersSnap = await getDocs(collection(db,"users"));
+
+  usersSnap.forEach(async (docSnap)=>{
+     const data = docSnap.data();
+     if(data.role === "student"){
+        await updateDoc(doc(db,"users",docSnap.id),{
+           [`attempts.${quizId}`]: false
+        });
+     }
+  });
+
+  alert("Attempts reset for " + quizId);
+};
+
