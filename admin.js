@@ -159,3 +159,41 @@ window.stopExam = async function(){
   });
   alert("Exam Stopped");
 };
+
+
+
+window.downloadResults = async function(){
+
+  try{
+
+    const snap = await getDocs(collection(db,"results"));
+
+    if(snap.empty){
+      alert("No results available.");
+      return;
+    }
+
+    const rows = [["Email","Quiz","Score","Total","Submitted At"]];
+
+    snap.forEach(d=>{
+      const r = d.data();
+      rows.push([
+        r.email || "",
+        r.quizId || "",
+        r.score || 0,
+        r.total || 0,
+        r.submittedAt || ""
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Results");
+
+    XLSX.writeFile(wb, "results.xlsx");
+
+  }catch(e){
+    alert("Error downloading results: " + e.message);
+  }
+};
+
