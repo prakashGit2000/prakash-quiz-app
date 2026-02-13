@@ -57,21 +57,54 @@ window.loadQuizManager = async function(){
 
 window.createQuiz = async function(){
 
-  const name=document.getElementById("newQuizName").value;
-  if(!name) return;
+  const name = document.getElementById("newQuizName").value.trim();
+  const file = document.getElementById("quizExcelFile").files[0];
 
+  if(!name){
+    alert("Enter quiz name");
+    return;
+  }
+
+  if(!file){
+    alert("Select Excel file");
+    return;
+  }
+
+  // Create quiz document
   await setDoc(doc(db,"quizzes",name),{
     name:name,
     createdAt:new Date().toISOString()
   });
 
-  loadQuizManager();
+  // Read Excel
+  const reader = new FileReader();
+
+  reader.onload = async function(e){
+
+    const wb = XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+    let i=1;
+
+    for(const r of rows){
+      await setDoc(doc(db,"quizzes",name,"questions","q"+i),{
+        question:r.question,
+        option1:r.option1,
+        option2:r.option2,
+        option3:r.option3,
+        option4:r.option4,
+        answer:r.answer
+      });
+      i++;
+    }
+
+    alert("Quiz Created & Questions Uploaded");
+    loadQuizManager();
+  };
+
+  reader.readAsArrayBuffer(file);
 };
 
-window.deleteQuiz = async function(id){
-  await deleteDoc(doc(db,"quizzes",id));
-  loadQuizManager();
-};
 
 // ================= STUDENT MANAGER =================
 window.loadStudentManager = async function(){
