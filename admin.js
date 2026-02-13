@@ -39,7 +39,9 @@ window.loadQuizManager = async function(){
 
   html+=`
     <input id="newQuizName" placeholder="New Quiz Name">
-    <button onclick="createQuiz()">Create Quiz</button>
+<input type="file" id="quizExcelFile">
+<button onclick="createQuiz()">Create Quiz + Upload Questions</button>
+
     <hr>
   `;
 
@@ -128,6 +130,41 @@ window.loadStudentManager = async function(){
   adminContent.innerHTML=html;
 };
 
+
+// upload exam mail students
+window.uploadExamStudents = async function(){
+
+  const file=document.getElementById("studentExcelFile").files[0];
+
+  if(!file){
+    alert("Select Excel file");
+    return;
+  }
+
+  const reader=new FileReader();
+
+  reader.onload=async function(e){
+
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+    const emails=[];
+
+    rows.forEach(r=>{
+      emails.push(r.email);
+    });
+
+    await updateDoc(doc(db,"examSessions","activeExam"),{
+      allowedEmails:emails
+    });
+
+    alert("Students uploaded for exam");
+  };
+
+  reader.readAsArrayBuffer(file);
+};
+
+
 // ================= EXAM CONTROL =================
 window.loadExamControl = async function(){
 
@@ -144,7 +181,12 @@ window.loadExamControl = async function(){
 
   html+="<input id='duration' type='number' placeholder='Duration (minutes)'>";
 
-  html+="<h3>Select Students</h3>";
+  html+=`
+<h3>Upload Allowed Students Excel</h3>
+<input type="file" id="studentExcelFile">
+<button onclick="uploadExamStudents()">Upload Students</button>
+`;
+
 
   userSnap.forEach(d=>{
     const u=d.data();
@@ -199,17 +241,22 @@ window.downloadResults = async function(){
 
   try{
 
-    const snap = await getDocs(collection(db,"results"));
-
-    if(snap.empty){
-      alert("No results available.");
+    if(typeof XLSX === "undefined"){
+      alert("Excel library not loaded");
       return;
     }
 
-    const rows = [["Email","Quiz","Score","Total","Submitted At"]];
+    const snap = await getDocs(collection(db,"results"));
+
+    if(snap.empty){
+      alert("No results available");
+      return;
+    }
+
+    const rows=[["Email","Quiz","Score","Total","Submitted At"]];
 
     snap.forEach(d=>{
-      const r = d.data();
+      const r=d.data();
       rows.push([
         r.email || "",
         r.quizId || "",
@@ -219,14 +266,15 @@ window.downloadResults = async function(){
       ]);
     });
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Results");
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Results");
 
-    XLSX.writeFile(wb, "results.xlsx");
+    XLSX.writeFile(wb,"results.xlsx");
 
   }catch(e){
-    alert("Error downloading results: " + e.message);
+    alert("Download Error: "+e.message);
   }
 };
+
 
