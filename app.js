@@ -259,23 +259,38 @@ async function loadQuiz(quizId,duration){
 document.body.innerHTML="<h2 id='timer'></h2><div id='quiz'></div>";
 startTimer(duration);
 
+questions = []; // clear old questions
+
 const snap=await getDocs(collection(db,"quizzes",quizId,"questions"));
 
 let html="";
 
 snap.forEach(d=>{
 const q=d.data();
-questions.push(q);
+
+questions.push({
+  id:d.id,
+  question:q.question,
+  option1:q.option1,
+  option2:q.option2,
+  option3:q.option3,
+  option4:q.option4,
+  answer:q.answer
+});
 
 html+=`
 <p><b>${q.question}</b></p>
-${q.options.map(o=>`<label><input type="radio" name="${q.question}" value="${o}">${o}</label><br>`).join("")}
-<br>`;
+<label><input type="radio" name="${d.id}" value="${q.option1}">${q.option1}</label><br>
+<label><input type="radio" name="${d.id}" value="${q.option2}">${q.option2}</label><br>
+<label><input type="radio" name="${d.id}" value="${q.option3}">${q.option3}</label><br>
+<label><input type="radio" name="${d.id}" value="${q.option4}">${q.option4}</label><br><br>
+`;
 });
 
 html+=`<button onclick="submitQuiz()">Submit</button>`;
-quiz.innerHTML=html;
+document.getElementById("quiz").innerHTML=html;
 }
+
 
 
 // ================= TIMER =================
@@ -297,19 +312,19 @@ clearInterval(timerInterval);
 let score=0;
 
 questions.forEach(q=>{
-const ans=document.querySelector(`input[name="${q.question}"]:checked`);
+const ans=document.querySelector(`input[name="${q.id}"]:checked`);
 if(ans && ans.value===q.answer) score++;
 });
 
 await setDoc(doc(db,"results",auth.currentUser.uid),{
 email:auth.currentUser.email,
 score,
-total:questions.length,
-submittedAt:new Date().toISOString()
+total:questions.length
 });
 
 document.body.innerHTML=`<h2>Submitted</h2><h3>Score ${score}/${questions.length}</h3>`;
 };
+
 
 
 // ================= DOWNLOAD RESULTS =================
