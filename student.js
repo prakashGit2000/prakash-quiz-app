@@ -133,6 +133,7 @@ async function submitQuiz(user){
   clearInterval(timerInterval);
 
   let score=0;
+
   questions.forEach(q=>{
     const ans=document.querySelector(`input[name="${q.id}"]:checked`);
     if(ans && ans.value===q.answer) score++;
@@ -152,6 +153,7 @@ async function submitQuiz(user){
     score:score
   });
 
+  // 👇 ADD IT HERE
   window.userData.attempted = true;
 
   quiz.innerHTML=`
