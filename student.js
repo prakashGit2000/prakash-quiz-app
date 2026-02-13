@@ -47,6 +47,7 @@ auth.onAuthStateChanged(async user => {
 }
 
 
+
   listenExam(user);
 });
 
@@ -148,10 +149,10 @@ window.manualSubmit = function () {
 // ================= SUBMIT QUIZ =================
 async function submitQuiz(user) {
 
-  if (!user) return;
+  if (!user || !currentQuizId) return;
 
-  if (window.userData?.attempted === true) {
-    alert("Already submitted.");
+  if (window.userData?.attempts?.[currentQuizId] === true) {
+    alert("You already attempted this quiz.");
     return;
   }
 
@@ -164,7 +165,8 @@ async function submitQuiz(user) {
     if (ans && ans.value === q.answer) score++;
   });
 
-  await setDoc(doc(db, "results", user.uid), {
+  await setDoc(doc(db, "results", `${user.uid}_${currentQuizId}`), {
+    userId: user.uid,
     email: user.email,
     quizId: currentQuizId,
     score,
@@ -172,18 +174,16 @@ async function submitQuiz(user) {
     submittedAt: new Date().toISOString()
   });
 
- await updateDoc(doc(db, "users", user.uid), {
-  status: "submitted",
-  [`attempts.${currentQuizId}`]: true,
-  score: score
-});
+  await updateDoc(doc(db, "users", user.uid), {
+    [`attempts.${currentQuizId}`]: true,
+    status: "submitted"
+  });
 
+  if (!window.userData.attempts) {
+    window.userData.attempts = {};
+  }
 
-  if(!window.userData.attempts){
-   window.userData.attempts = {};
-}
-window.userData.attempts[currentQuizId] = true;
-
+  window.userData.attempts[currentQuizId] = true;
 
   quiz.innerHTML = `
     <h2>Submitted Successfully</h2>
@@ -194,6 +194,7 @@ window.userData.attempts[currentQuizId] = true;
     window.location.href = "index.html";
   }, 5000);
 }
+
 
 
 // ================= TAB SWITCH DETECTION =================
