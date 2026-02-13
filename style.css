@@ -1,39 +1,68 @@
-body{
+body.dark {
+  background: #121212;
+  color: #fff;
   font-family: Arial;
-  background:#eef2f7;
-  text-align:center;
+  margin: 0;
 }
 
-.card{
-  background:white;
-  width:400px;
-  margin:auto;
-  margin-top:80px;
-  padding:25px;
-  box-shadow:0 0 12px rgba(0,0,0,0.2);
-  border-radius:10px;
+.card {
+  background: #1e1e1e;
+  padding: 30px;
+  width: 350px;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.5);
 }
 
-input{
-  width:90%;
-  padding:10px;
-  margin:8px;
+.center {
+  margin: 100px auto;
+  text-align: center;
 }
 
-button{
-  padding:10px 18px;
-  margin:5px;
-  background:#1976d2;
-  color:white;
-  border:none;
-  cursor:pointer;
+input {
+  width: 90%;
+  padding: 10px;
+  margin: 8px;
+  background: #2a2a2a;
+  border: none;
+  color: white;
 }
 
-button:hover{
-  background:#125ca1;
+button {
+  padding: 10px 15px;
+  margin: 6px;
+  border: none;
+  background: #2979ff;
+  color: white;
+  cursor: pointer;
 }
 
-#timer{
-  font-size:22px;
-  color:red;
+button:hover {
+  background: #1565c0;
 }
+
+.dashboard {
+  display: flex;
+}
+
+.sidebar {
+  width: 220px;
+  background: #1f1f1f;
+  padding: 20px;
+  height: 100vh;
+}
+
+.content {
+  flex: 1;
+  padding: 30px;
+}
+
+.exam-container {
+  max-width: 800px;
+  margin: auto;
+  padding: 20px;
+}
+
+.status-online { color: #4caf50; }
+.status-attempting { color: #ff9800; }
+.status-submitted { color: #00e676; }
+.status-offline { color: #f44336; }
