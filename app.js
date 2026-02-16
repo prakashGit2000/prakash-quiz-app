@@ -24,6 +24,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+
+
+// ================= REGISTER =================
 window.register = async function(){
 
   const emailVal = email.value.trim().toLowerCase();
@@ -34,7 +37,7 @@ window.register = async function(){
     return;
   }
 
-  // 🔥 CHECK PERMANENT APPROVAL LIST
+  // 🔐 PERMANENT APPROVAL CHECK
   const allowedSnap = await getDoc(doc(db,"allowedEmails",emailVal));
 
   if(!allowedSnap.exists()){
@@ -66,19 +69,21 @@ window.register = async function(){
 
 
 
+// ================= LOGIN =================
 window.login = async function(){
 
   try{
 
-    const email = document.getElementById("email").value.trim().toLowerCase();
-    const password = document.getElementById("password").value;
+    const emailVal = document.getElementById("email").value.trim().toLowerCase();
+    const passwordVal = document.getElementById("password").value;
 
-    const userCred = await signInWithEmailAndPassword(auth,email,password);
+    const userCred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
     const user = userCred.user;
 
     const userRef = doc(db,"users",user.uid);
     const userDoc = await getDoc(userRef);
 
+    // first login create profile
     if(!userDoc.exists()){
       await setDoc(userRef,{
         email:user.email,
@@ -102,36 +107,17 @@ window.login = async function(){
       return;
     }
 
-    // ⭐⭐⭐ ADD VALIDATION HERE ⭐⭐⭐
-    const examSnap = await getDoc(doc(db,"examSessions","activeExam"));
-
-    if(!examSnap.exists()){
-      msg.innerText="No exam available now.";
-      return;
-    }
-
-   
-    const allowedEmails = data.allowedEmails || [];
-
-if(
-  data.status === "running" &&
-  allowedEmails.includes(user.email.toLowerCase())
-){
-  loadQuiz(user,data.quizId,data.duration);
-}else{
-  quiz.innerHTML="<h2>You are not approved by admin yet.</h2>";
-}
-
-
-    // ⭐ ONLY AFTER PASSING VALIDATION
+    // ONLY REDIRECT
     window.location.href="student.html";
 
   }catch(e){
-    msg.innerText="Invalid login.";
+    msg.innerText="Invalid email or password.";
   }
 };
 
 
+
+// ================= RESET PASSWORD =================
 window.resetPassword = async function(){
   await sendPasswordResetEmail(auth,email.value.trim());
   msg.innerText="Password reset email sent.";
