@@ -7,10 +7,25 @@
 <body class="dark">
 
 <div class="exam-container">
-  <h2 id="examTitle">Waiting for Exam...</h2>
-  <h3 id="timer"></h3>
-  <div id="quiz"></div>
+
+  <div class="left-panel">
+    <h2 id="timer"></h2>
+    <div id="questionBox"></div>
+
+    <div class="nav-buttons">
+      <button onclick="prevQuestion()">Previous</button>
+      <button onclick="nextQuestion()">Next</button>
+      <button onclick="manualSubmit()">Submit</button>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <h3>Questions</h3>
+    <div id="palette"></div>
+  </div>
+
 </div>
+
 
 <script type="module" src="student.js"></script>
   <script>
