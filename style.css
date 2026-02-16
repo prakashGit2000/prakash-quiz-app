@@ -67,3 +67,38 @@ button:hover {
 .status-attempting { color: #ff9800; }
 .status-submitted { color: #00e676; }
 .status-offline { color: #f44336; }
+
+
+.exam-container{
+  display:flex;
+  gap:20px;
+  padding:20px;
+}
+
+.left-panel{
+  width:70%;
+}
+
+.right-panel{
+  width:30%;
+  border-left:2px solid #444;
+  padding-left:15px;
+}
+
+#palette{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:8px;
+}
+
+.qbox{
+  padding:10px;
+  text-align:center;
+  cursor:pointer;
+  background:#444;
+}
+
+.answered{ background:green; }
+.notanswered{ background:red; }
+.current{ background:orange; }
+
