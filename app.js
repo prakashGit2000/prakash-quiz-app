@@ -24,32 +24,50 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-window.register = async function() {
 
-  const email = document.getElementById("email").value.trim();
+
+// ================= REGISTER =================
+window.register = async function(){
+
+  const email = document.getElementById("email").value.trim().toLowerCase();
   const password = document.getElementById("password").value;
 
-  const allowed = await getDoc(doc(db,"allowedEmails",email));
-
-  if(!allowed.exists()){
-    msg.innerText="Email not allowed.";
+  if(!email || !password){
+    msg.innerText="Enter email & password";
     return;
   }
 
   try{
-    const user = await createUserWithEmailAndPassword(auth,email,password);
-    await sendEmailVerification(user.user);
-    msg.innerText="Verification email sent.";
+
+    const userCred = await createUserWithEmailAndPassword(auth,email,password);
+    const user = userCred.user;
+
+    // create user profile
+    await setDoc(doc(db,"users",user.uid),{
+      email:user.email,
+      role:"student",
+      status:"registered",
+      attempts:{},
+      createdAt:new Date().toISOString()
+    });
+
+    await sendEmailVerification(user);
+
+    msg.innerText="Registered successfully. Verify email before login.";
+
   }catch(e){
     msg.innerText=e.message;
   }
 };
 
+
+
+// ================= LOGIN =================
 window.login = async function(){
 
   try{
 
-    const email = document.getElementById("email").value.trim();
+    const email = document.getElementById("email").value.trim().toLowerCase();
     const password = document.getElementById("password").value;
 
     const userCred = await signInWithEmailAndPassword(auth,email,password);
@@ -58,33 +76,47 @@ window.login = async function(){
     const userRef = doc(db,"users",user.uid);
     const userDoc = await getDoc(userRef);
 
+    // if admin login
+    if(email==="prakash4snu@gmail.com"){
+      await setDoc(userRef,{
+        email:user.email,
+        role:"admin",
+        status:"online"
+      },{merge:true});
+
+      window.location.href="admin.html";
+      return;
+    }
+
+    // student login
+    if(!user.emailVerified){
+      msg.innerText="Verify your email first.";
+      return;
+    }
+
+    // ensure user profile exists
     if(!userDoc.exists()){
       await setDoc(userRef,{
         email:user.email,
-        role:(user.email==="prakash4snu@gmail.com")?"admin":"student",
+        role:"student",
         status:"online",
-        attempted:false
+        attempts:{}
       });
-    }
-
-    const role = (await getDoc(userRef)).data().role;
-
-    if(role==="admin"){
-      window.location.href="admin.html";
     }else{
-      if(!user.emailVerified){
-        msg.innerText="Verify email first.";
-        return;
-      }
-      window.location.href="student.html";
+      await setDoc(userRef,{status:"online"},{merge:true});
     }
+
+    window.location.href="student.html";
 
   }catch(e){
-    msg.innerText="Invalid login.";
+    msg.innerText="Invalid email or password.";
   }
 };
 
+
+
+// ================= RESET PASSWORD =================
 window.resetPassword = async function(){
-  await sendPasswordResetEmail(auth,email.value.trim());
+  await sendPasswordResetEmail(auth,document.getElementById("email").value.trim());
   msg.innerText="Password reset email sent.";
 };
