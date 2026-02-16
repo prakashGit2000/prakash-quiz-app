@@ -21,6 +21,10 @@ const firebaseConfig = {
   projectId: "prakashsir-quiz-system"
 };
 
+let currentIndex = 0;
+let answers = {};
+
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -80,46 +84,127 @@ function listenExam(user) {
 }
 
 
-// ================= LOAD QUIZ =================
-async function loadQuiz(user, quizId, duration) {
-  
-  if (window.userData?.attempts?.[quizId] === true) {
-   quiz.innerHTML = "<h2>You already attempted this quiz</h2>";
-   return;
-}
+
+
+
+
+async function loadQuiz(user, quizId, duration){
 
   currentQuizId = quizId;
   questions = [];
+  answers = {};
+  currentIndex = 0;
+
   clearInterval(timerInterval);
 
-  const snap = await getDocs(collection(db, "quizzes", quizId, "questions"));
+  const snap = await getDocs(collection(db,"quizzes",quizId,"questions"));
 
-  let html = "";
-
-  snap.forEach(d => {
-
-    const q = d.data();
-
+  snap.forEach(d=>{
+    const q=d.data();
     questions.push({
-      id: d.id,
-      answer: q.answer
+      id:d.id,
+      question:q.question,
+      options:[q.option1,q.option2,q.option3,q.option4],
+      answer:q.answer
     });
+    answers[d.id]=null;
+  });
 
-    html += `
-      <h3>${q.question}</h3>
-      <label><input type="radio" name="${d.id}" value="${q.option1}"> ${q.option1}</label><br>
-      <label><input type="radio" name="${d.id}" value="${q.option2}"> ${q.option2}</label><br>
-      <label><input type="radio" name="${d.id}" value="${q.option3}"> ${q.option3}</label><br>
-      <label><input type="radio" name="${d.id}" value="${q.option4}"> ${q.option4}</label><br><br>
+  renderQuestion();
+  renderPalette();
+  startTimer(user,duration);
+}
+
+
+
+
+
+
+function renderQuestion(){
+
+  const q=questions[currentIndex];
+
+  let html=`<h3>Q${currentIndex+1}. ${q.question}</h3>`;
+
+  q.options.forEach(opt=>{
+    const checked = answers[q.id]===opt ? "checked":"";
+    html+=`
+      <label>
+        <input type="radio" name="option" value="${opt}" ${checked}
+          onchange="saveAnswer('${q.id}',this.value)">
+        ${opt}
+      </label><br>
     `;
   });
 
-  html += `<button onclick="manualSubmit()">Submit</button>`;
+  questionBox.innerHTML=html;
 
-  quiz.innerHTML = html;
-
-  startTimer(user, duration);
+  updatePalette();
 }
+
+
+
+
+window.saveAnswer=function(qid,value){
+  answers[qid]=value;
+  updatePalette();
+}
+
+
+
+
+
+window.nextQuestion=function(){
+  if(currentIndex<questions.length-1){
+    currentIndex++;
+    renderQuestion();
+  }
+}
+
+window.prevQuestion=function(){
+  if(currentIndex>0){
+    currentIndex--;
+    renderQuestion();
+  }
+}
+
+
+
+
+
+
+function renderPalette(){
+
+  let html="";
+
+  questions.forEach((q,i)=>{
+    html+=`<div class="qbox" id="p${i}" onclick="jump(${i})">${i+1}</div>`;
+  });
+
+  palette.innerHTML=html;
+  updatePalette();
+}
+
+window.jump=function(i){
+  currentIndex=i;
+  renderQuestion();
+}
+
+function updatePalette(){
+
+  questions.forEach((q,i)=>{
+
+    const box=document.getElementById("p"+i);
+    box.className="qbox";
+
+    if(i===currentIndex) box.classList.add("current");
+    else if(answers[q.id]) box.classList.add("answered");
+    else box.classList.add("notanswered");
+
+  });
+}
+
+
 
 
 // ================= TIMER =================
@@ -158,21 +243,28 @@ async function submitQuiz(user) {
 
   clearInterval(timerInterval);
 
-  let score = 0;
+  let score=0;
+let attempted=0;
 
-  questions.forEach(q => {
-    const ans = document.querySelector(`input[name="${q.id}"]:checked`);
-    if (ans && ans.value === q.answer) score++;
-  });
+questions.forEach(q=>{
+  if(answers[q.id]){
+    attempted++;
+    if(answers[q.id]===q.answer) score++;
+  }
+});
 
-  await setDoc(doc(db, "results", `${user.uid}_${currentQuizId}`), {
-    userId: user.uid,
-    email: user.email,
-    quizId: currentQuizId,
-    score,
-    total: questions.length,
-    submittedAt: new Date().toISOString()
-  });
+
+  await setDoc(doc(db,"results",`${user.uid}_${currentQuizId}`),{
+  userId:user.uid,
+  email:user.email,
+  quizId:currentQuizId,
+  score,
+  total:questions.length,
+  attempted,
+  notAttempted:questions.length-attempted,
+  submittedAt:new Date().toISOString()
+});
+
 
   await updateDoc(doc(db, "users", user.uid), {
     [`attempts.${currentQuizId}`]: true,
