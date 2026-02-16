@@ -113,15 +113,15 @@ window.loadStudentManager = async function(){
 
   const snap = await getDocs(collection(db,"users"));
 
-  let html="<h2>Students</h2>";
+  let html="<h2>Registered Students</h2>";
 
   snap.forEach(d=>{
     const u=d.data();
+
     if(u.role==="student"){
       html+=`
-        <div>
-          ${u.email} 
-          <span class="status-${u.status}">${u.status}</span>
+        <div style="padding:8px;border-bottom:1px solid #444;">
+          ${u.email}
         </div>
       `;
     }
@@ -129,6 +129,7 @@ window.loadStudentManager = async function(){
 
   adminContent.innerHTML=html;
 };
+
 
 
 // upload exam mail students
@@ -181,15 +182,11 @@ window.loadExamControl = async function(){
 
   html+="<input id='duration' type='number' placeholder='Duration (minutes)'>";
 
-  html+=`
-<h3>Upload Allowed Students Excel</h3>
-<input type="file" id="studentExcelFile">
-<button onclick="uploadExamStudents()">Upload Students</button>
-`;
-
+  html+="<h3>Select Students Allowed To Write</h3>";
 
   userSnap.forEach(d=>{
     const u=d.data();
+
     if(u.role==="student"){
       html+=`
         <div>
@@ -208,6 +205,7 @@ window.loadExamControl = async function(){
   adminContent.innerHTML=html;
 };
 
+
 window.startExam = async function(){
 
   const quiz=document.getElementById("quizSelect").value;
@@ -217,6 +215,11 @@ window.startExam = async function(){
   document.querySelectorAll(".studentCheck:checked")
     .forEach(cb=>selected.push(cb.value));
 
+  if(selected.length===0){
+    alert("Select at least one student");
+    return;
+  }
+
   await setDoc(doc(db,"examSessions","activeExam"),{
     quizId:quiz,
     duration:duration,
@@ -225,8 +228,9 @@ window.startExam = async function(){
     startedAt:new Date().toISOString()
   });
 
-  alert("Exam Started");
+  alert("Exam Started — Only selected students can enter");
 };
+
 
 window.stopExam = async function(){
   await updateDoc(doc(db,"examSessions","activeExam"),{
