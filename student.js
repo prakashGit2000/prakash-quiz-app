@@ -67,11 +67,13 @@ function listenExam(user) {
     const data = snap.data();
 
     if (
-      data.status === "running" &&
-      data.allowedStudents?.includes(user.uid)
-    ) {
-      loadQuiz(user, data.quizId, data.duration);
-    }
+  data.status === "running" &&
+  data.allowedStudents?.includes(user.uid)
+)
+{
+  loadQuiz(user,data.quizId,data.duration);
+}
+
 
     if (data.status === "stopped") {
       submitQuiz(user);
