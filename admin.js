@@ -14,6 +14,32 @@ import {
   deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+onAuthStateChanged(auth, async (user)=>{
+
+  if(!user){
+    window.location.href="index.html";
+    return;
+  }
+
+  const userDoc = await getDoc(doc(db,"users",user.uid));
+
+  if(!userDoc.exists() || userDoc.data().role !== "admin"){
+    alert("Access Denied");
+    window.location.href="student.html";
+    return;
+  }
+
+  // only admin reaches here
+  console.log("Admin authenticated");
+
+});
+
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
   authDomain: "prakashsir-quiz-system.firebaseapp.com",
