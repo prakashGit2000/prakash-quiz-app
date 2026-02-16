@@ -1,6 +1,18 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
@@ -12,46 +24,67 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// REGISTER (check active exam allowedEmails)
-window.register = async function(){
-  const emailVal = email.value.trim().toLowerCase();
-  const passwordVal = password.value;
+window.register = async function() {
 
-  if(!emailVal || !passwordVal){ msg.innerText="Enter email and password"; return; }
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
 
-  const examSnap = await getDoc(doc(db,"examSessions","activeExam"));
-  if(!examSnap.exists()){ msg.innerText="Registration closed"; return; }
+  const allowed = await getDoc(doc(db,"allowedEmails",email));
 
-  const allowed = examSnap.data().allowedEmails || [];
-  if(!allowed.map(e=>e.toLowerCase()).includes(emailVal)){
-    msg.innerText="You are not approved by admin yet."; return;
+  if(!allowed.exists()){
+    msg.innerText="Email not allowed.";
+    return;
   }
 
   try{
-    const cred = await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
-    await setDoc(doc(db,"users",cred.user.uid),{email:cred.user.email,role:"student",attempts:{},createdAt:new Date().toISOString()});
-    await sendEmailVerification(cred.user);
-    msg.innerText="Registered. Verify email then login.";
-  }catch(e){ msg.innerText=e.message; }
+    const user = await createUserWithEmailAndPassword(auth,email,password);
+    await sendEmailVerification(user.user);
+    msg.innerText="Verification email sent.";
+  }catch(e){
+    msg.innerText=e.message;
+  }
 };
 
-// LOGIN
 window.login = async function(){
+
   try{
-    const emailVal=email.value.trim().toLowerCase();
-    const passwordVal=password.value;
-    const cred=await signInWithEmailAndPassword(auth,emailVal,passwordVal);
-    const user=cred.user;
 
-    const ref=doc(db,"users",user.uid);
-    const snap=await getDoc(ref);
-    if(!snap.exists()) await setDoc(ref,{email:user.email,role:(user.email==="prakash4snu@gmail.com")?"admin":"student",attempts:{}});
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
 
-    const role=(await getDoc(ref)).data().role;
-    if(role==="admin"){ window.location.href="admin.html"; return; }
-    if(!user.emailVerified){ msg.innerText="Verify email first"; return; }
-    window.location.href="student.html";
-  }catch(e){ msg.innerText="Invalid login"; }
+    const userCred = await signInWithEmailAndPassword(auth,email,password);
+    const user = userCred.user;
+
+    const userRef = doc(db,"users",user.uid);
+    const userDoc = await getDoc(userRef);
+
+    if(!userDoc.exists()){
+      await setDoc(userRef,{
+        email:user.email,
+        role:(user.email==="prakash4snu@gmail.com")?"admin":"student",
+        status:"online",
+        attempted:false
+      });
+    }
+
+    const role = (await getDoc(userRef)).data().role;
+
+    if(role==="admin"){
+      window.location.href="admin.html";
+    }else{
+      if(!user.emailVerified){
+        msg.innerText="Verify email first.";
+        return;
+      }
+      window.location.href="student.html";
+    }
+
+  }catch(e){
+    msg.innerText="Invalid login.";
+  }
 };
 
-window.resetPassword=async()=>{ await sendPasswordResetEmail(auth,email.value.trim()); msg.innerText="Password reset email sent"; };
+window.resetPassword = async function(){
+  await sendPasswordResetEmail(auth,email.value.trim());
+  msg.innerText="Password reset email sent.";
+};
