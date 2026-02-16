@@ -110,12 +110,18 @@ window.login = async function(){
       return;
     }
 
-    const allowedEmails = examSnap.data().allowedEmails || [];
+   
+    const allowedEmails = data.allowedEmails || [];
 
-    if(!allowedEmails.includes(user.email.toLowerCase())){
-      msg.innerText="You are not allowed for this exam.";
-      return;
-    }
+if(
+  data.status === "running" &&
+  allowedEmails.includes(user.email.toLowerCase())
+){
+  loadQuiz(user,data.quizId,data.duration);
+}else{
+  quiz.innerHTML="<h2>You are not approved by admin yet.</h2>";
+}
+
 
     // ⭐ ONLY AFTER PASSING VALIDATION
     window.location.href="student.html";
