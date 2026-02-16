@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth
+  getAuth,
+  signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -24,11 +25,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-let timerInterval = null;
+let timerInterval;
 let questions = [];
 let currentQuizId = null;
-let submitted = false;
-
 
 
 // ================= AUTH CHECK =================
@@ -39,79 +38,74 @@ auth.onAuthStateChanged(async user => {
     return;
   }
 
-  const userDoc = await getDoc(doc(db,"users",user.uid));
-  window.userData = userDoc.data() || {};
+  const userDoc = await getDoc(doc(db, "users", user.uid));
+  window.userData = userDoc.data();
+
+  if (window.userData?.attempts?.[currentQuizId] === true) {
+  alert("You already attempted this quiz.");
+  return;
+}
+
+
 
   listenExam(user);
 });
 
 
-
 // ================= REALTIME EXAM LISTENER =================
-function listenExam(user){
+function listenExam(user) {
 
-  const examRef = doc(db,"examSessions","activeExam");
+  const examRef = doc(db, "examSessions", "activeExam");
 
   onSnapshot(examRef, async snap => {
 
-    if(!snap.exists()){
-      quiz.innerHTML="<h2>No Active Exam</h2>";
+    if (!snap.exists()) {
+      examTitle.innerText = "No active exam";
       return;
     }
 
     const data = snap.data();
 
-    // ⭐ CHECK EMAIL PERMISSION
-    const allowedEmails = (data.allowedEmails || []).map(e=>e.toLowerCase());
-
-    if(!allowedEmails.includes(user.email.toLowerCase())){
-      quiz.innerHTML="<h2>You are not allowed for this exam</h2>";
-      return;
+    if (
+      data.status === "running" &&
+      data.allowedStudents?.includes(user.uid)
+    ) {
+      loadQuiz(user, data.quizId, data.duration);
     }
 
-    // ⭐ START EXAM
-    if(data.status==="running"){
-      loadQuiz(user,data.quizId,data.duration);
+    if (data.status === "stopped") {
+      submitQuiz(user);
     }
-
-    // ⭐ ADMIN STOPPED → AUTO SUBMIT
-    if(data.status==="stopped"){
-      submitQuiz(user,true);
-    }
-
   });
 }
 
 
-
 // ================= LOAD QUIZ =================
-async function loadQuiz(user,quizId,duration){
-
-  // prevent reload
-  if(currentQuizId===quizId && timerInterval) return;
+async function loadQuiz(user, quizId, duration) {
+  
+  if (window.userData?.attempts?.[quizId] === true) {
+   quiz.innerHTML = "<h2>You already attempted this quiz</h2>";
+   return;
+}
 
   currentQuizId = quizId;
-  submitted = false;
-
-  // already attempted
-  if(window.userData?.attempts?.[quizId]===true){
-    quiz.innerHTML="<h2>You already attempted this quiz</h2>";
-    return;
-  }
-
+  questions = [];
   clearInterval(timerInterval);
-  questions=[];
 
-  const snap = await getDocs(collection(db,"quizzes",quizId,"questions"));
+  const snap = await getDocs(collection(db, "quizzes", quizId, "questions"));
 
-  let html="";
+  let html = "";
 
-  snap.forEach(d=>{
-    const q=d.data();
+  snap.forEach(d => {
 
-    questions.push({id:d.id,answer:q.answer});
+    const q = d.data();
 
-    html+=`
+    questions.push({
+      id: d.id,
+      answer: q.answer
+    });
+
+    html += `
       <h3>${q.question}</h3>
       <label><input type="radio" name="${d.id}" value="${q.option1}"> ${q.option1}</label><br>
       <label><input type="radio" name="${d.id}" value="${q.option2}"> ${q.option2}</label><br>
@@ -120,95 +114,92 @@ async function loadQuiz(user,quizId,duration){
     `;
   });
 
-  html+=`<button onclick="manualSubmit()">Submit</button>`;
-  quiz.innerHTML=html;
+  html += `<button onclick="manualSubmit()">Submit</button>`;
 
-  startTimer(auth.currentUser,duration);
+  quiz.innerHTML = html;
+
+  startTimer(user, duration);
 }
-
 
 
 // ================= TIMER =================
-function startTimer(user,minutes){
+function startTimer(user, minutes) {
 
-  let t=minutes*60;
+  let t = minutes * 60;
 
-  timerInterval=setInterval(()=>{
+  timerInterval = setInterval(() => {
 
-    timer.innerText=`Time Left: ${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
+    timer.innerText = `Time Left: ${Math.floor(t / 60)}:${t % 60}`;
 
-    if(--t<=0){
+    if (--t <= 0) {
       clearInterval(timerInterval);
-      submitQuiz(user,true);
+      submitQuiz(user);
     }
 
-  },1000);
+  }, 1000);
 }
 
 
-
 // ================= MANUAL SUBMIT =================
-window.manualSubmit = function(){
-  submitQuiz(auth.currentUser,false);
+window.manualSubmit = function () {
+  submitQuiz(auth.currentUser);
 };
 
 
-
 // ================= SUBMIT QUIZ =================
-async function submitQuiz(user,auto=false){
+async function submitQuiz(user) {
 
-  if(!user || !currentQuizId || submitted) return;
-  submitted=true;
+  if (!user || !currentQuizId) return;
 
-  if(window.userData?.attempts?.[currentQuizId]===true){
-    quiz.innerHTML="<h2>Already submitted</h2>";
+  if (window.userData?.attempts?.[currentQuizId] === true) {
+    alert("You already attempted this quiz.");
     return;
   }
 
   clearInterval(timerInterval);
 
-  let score=0;
+  let score = 0;
 
-  questions.forEach(q=>{
-    const ans=document.querySelector(`input[name="${q.id}"]:checked`);
-    if(ans && ans.value===q.answer) score++;
+  questions.forEach(q => {
+    const ans = document.querySelector(`input[name="${q.id}"]:checked`);
+    if (ans && ans.value === q.answer) score++;
   });
 
-  // STORE RESULT
-  await setDoc(doc(db,"results",`${user.uid}_${currentQuizId}`),{
-    userId:user.uid,
-    email:user.email,
-    quizId:currentQuizId,
+  await setDoc(doc(db, "results", `${user.uid}_${currentQuizId}`), {
+    userId: user.uid,
+    email: user.email,
+    quizId: currentQuizId,
     score,
-    total:questions.length,
-    submittedAt:new Date().toISOString(),
-    type:auto?"auto":"manual"
+    total: questions.length,
+    submittedAt: new Date().toISOString()
   });
 
-  // UPDATE USER
-  await updateDoc(doc(db,"users",user.uid),{
-    [`attempts.${currentQuizId}`]:true,
-    status:"submitted"
+  await updateDoc(doc(db, "users", user.uid), {
+    [`attempts.${currentQuizId}`]: true,
+    status: "submitted"
   });
 
-  if(!window.userData.attempts) window.userData.attempts={};
-  window.userData.attempts[currentQuizId]=true;
+  if (!window.userData.attempts) {
+    window.userData.attempts = {};
+  }
 
-  quiz.innerHTML=`
-    <h2>Test Submitted Successfully</h2>
+  window.userData.attempts[currentQuizId] = true;
+
+  quiz.innerHTML = `
+    <h2>Submitted Successfully</h2>
     <h3>Score: ${score}/${questions.length}</h3>
   `;
 
-  setTimeout(()=>{
-    window.location.href="index.html";
-  },5000);
+  setTimeout(() => {
+    window.location.href = "index.html";
+  }, 5000);
 }
 
 
 
-// ================= TAB SWITCH WARNING =================
-document.addEventListener("visibilitychange",()=>{
-  if(document.hidden){
+// ================= TAB SWITCH DETECTION =================
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
     alert("Tab switching is not allowed!");
   }
 });

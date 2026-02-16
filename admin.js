@@ -11,34 +11,9 @@ import {
   doc,
   setDoc,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-onAuthStateChanged(auth, async (user)=>{
-
-  if(!user){
-    window.location.href="index.html";
-    return;
-  }
-
-  const userDoc = await getDoc(doc(db,"users",user.uid));
-
-  if(!userDoc.exists() || userDoc.data().role !== "admin"){
-    alert("Access Denied");
-    window.location.href="student.html";
-    return;
-  }
-
-  // only admin reaches here
-  console.log("Admin authenticated");
-
-});
-
-
 
 const firebaseConfig = {
   apiKey: "AIzaSyCIhVp-q6jIkgP5Hid0CPVkHVx-2Vk9WUI",
@@ -50,17 +25,12 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ================= LOGOUT =================
 window.logout = async function(){
   await signOut(auth);
   window.location.href="index.html";
 };
 
-
-
-// =====================================================
-// QUIZ MANAGER (Create Quiz + Upload Excel Questions)
-// =====================================================
+// ================= QUIZ MANAGER =================
 window.loadQuizManager = async function(){
 
   const snap = await getDocs(collection(db,"quizzes"));
@@ -69,8 +39,9 @@ window.loadQuizManager = async function(){
 
   html+=`
     <input id="newQuizName" placeholder="New Quiz Name">
-    <input type="file" id="quizExcelFile">
-    <button onclick="createQuiz()">Create Quiz + Upload Questions</button>
+<input type="file" id="quizExcelFile">
+<button onclick="createQuiz()">Create Quiz + Upload Questions</button>
+
     <hr>
   `;
 
@@ -79,7 +50,6 @@ window.loadQuizManager = async function(){
       <div>
         ${d.id}
         <button onclick="deleteQuiz('${d.id}')">Delete</button>
-        <button onclick="resetAttempts('${d.id}')">Reset Attempts</button>
       </div>
     `;
   });
@@ -87,21 +57,28 @@ window.loadQuizManager = async function(){
   adminContent.innerHTML=html;
 };
 
-
-// CREATE QUIZ
 window.createQuiz = async function(){
 
   const name = document.getElementById("newQuizName").value.trim();
   const file = document.getElementById("quizExcelFile").files[0];
 
-  if(!name) return alert("Enter quiz name");
-  if(!file) return alert("Select Excel file");
+  if(!name){
+    alert("Enter quiz name");
+    return;
+  }
 
+  if(!file){
+    alert("Select Excel file");
+    return;
+  }
+
+  // Create quiz document
   await setDoc(doc(db,"quizzes",name),{
     name:name,
     createdAt:new Date().toISOString()
   });
 
+  // Read Excel
   const reader = new FileReader();
 
   reader.onload = async function(e){
@@ -131,18 +108,7 @@ window.createQuiz = async function(){
 };
 
 
-// DELETE QUIZ
-window.deleteQuiz = async function(id){
-  await deleteDoc(doc(db,"quizzes",id));
-  alert("Quiz Deleted");
-  loadQuizManager();
-};
-
-
-
-// =====================================================
-// STUDENT MANAGER (VIEW REGISTERED STUDENTS)
-// =====================================================
+// ================= STUDENT MANAGER =================
 window.loadStudentManager = async function(){
 
   const snap = await getDocs(collection(db,"users"));
@@ -154,8 +120,8 @@ window.loadStudentManager = async function(){
     if(u.role==="student"){
       html+=`
         <div>
-          ${u.email}
-          <span style="color:lightgreen">${u.status || "registered"}</span>
+          ${u.email} 
+          <span class="status-${u.status}">${u.status}</span>
         </div>
       `;
     }
@@ -165,14 +131,15 @@ window.loadStudentManager = async function(){
 };
 
 
-
-// =====================================================
-// UPLOAD ALLOWED EXAM EMAILS
-// =====================================================
+// upload exam mail students
 window.uploadExamStudents = async function(){
 
   const file=document.getElementById("studentExcelFile").files[0];
-  if(!file) return alert("Select Excel");
+
+  if(!file){
+    alert("Select Excel file");
+    return;
+  }
 
   const reader=new FileReader();
 
@@ -184,27 +151,25 @@ window.uploadExamStudents = async function(){
     const emails=[];
 
     rows.forEach(r=>{
-      if(r.email) emails.push(r.email.toLowerCase());
+      emails.push(r.email);
     });
 
     await updateDoc(doc(db,"examSessions","activeExam"),{
       allowedEmails:emails
     });
 
-    alert("Allowed Students Uploaded");
+    alert("Students uploaded for exam");
   };
 
   reader.readAsArrayBuffer(file);
 };
 
 
-
-// =====================================================
-// EXAM CONTROL PANEL
-// =====================================================
+// ================= EXAM CONTROL =================
 window.loadExamControl = async function(){
 
   const quizSnap=await getDocs(collection(db,"quizzes"));
+  const userSnap=await getDocs(collection(db,"users"));
 
   let html="<h2>Exam Control</h2>";
 
@@ -217,10 +182,25 @@ window.loadExamControl = async function(){
   html+="<input id='duration' type='number' placeholder='Duration (minutes)'>";
 
   html+=`
-    <h3>Upload Allowed Student Emails</h3>
-    <input type="file" id="studentExcelFile">
-    <button onclick="uploadExamStudents()">Upload</button>
-    <br><br>
+<h3>Upload Allowed Students Excel</h3>
+<input type="file" id="studentExcelFile">
+<button onclick="uploadExamStudents()">Upload Students</button>
+`;
+
+
+  userSnap.forEach(d=>{
+    const u=d.data();
+    if(u.role==="student"){
+      html+=`
+        <div>
+          <input type="checkbox" value="${d.id}" class="studentCheck">
+          ${u.email}
+        </div>
+      `;
+    }
+  });
+
+  html+=`
     <button onclick="startExam()">Start Exam</button>
     <button onclick="stopExam()">Stop Exam</button>
   `;
@@ -228,50 +208,62 @@ window.loadExamControl = async function(){
   adminContent.innerHTML=html;
 };
 
-
-// START EXAM
 window.startExam = async function(){
 
   const quiz=document.getElementById("quizSelect").value;
   const duration=Number(document.getElementById("duration").value);
 
-  if(!quiz || !duration) return alert("Select quiz & duration");
+  const selected=[];
+  document.querySelectorAll(".studentCheck:checked")
+    .forEach(cb=>selected.push(cb.value));
 
   await setDoc(doc(db,"examSessions","activeExam"),{
     quizId:quiz,
     duration:duration,
     status:"running",
-    allowedEmails:[],
+    allowedStudents:selected,
     startedAt:new Date().toISOString()
   });
 
   alert("Exam Started");
 };
 
-
-// STOP EXAM
 window.stopExam = async function(){
-  await updateDoc(doc(db,"examSessions","activeExam"),{ status:"stopped" });
+  await updateDoc(doc(db,"examSessions","activeExam"),{
+    status:"stopped"
+  });
   alert("Exam Stopped");
 };
 
 
 
-// =====================================================
-// DOWNLOAD RESULTS
-// =====================================================
 window.downloadResults = async function(){
 
   try{
 
+    if(typeof XLSX === "undefined"){
+      alert("Excel library not loaded");
+      return;
+    }
+
     const snap = await getDocs(collection(db,"results"));
-    if(snap.empty) return alert("No results");
+
+    if(snap.empty){
+      alert("No results available");
+      return;
+    }
 
     const rows=[["Email","Quiz","Score","Total","Submitted At"]];
 
     snap.forEach(d=>{
       const r=d.data();
-      rows.push([r.email,r.quizId,r.score,r.total,r.submittedAt]);
+      rows.push([
+        r.email || "",
+        r.quizId || "",
+        r.score || 0,
+        r.total || 0,
+        r.submittedAt || ""
+      ]);
     });
 
     const ws=XLSX.utils.aoa_to_sheet(rows);
@@ -287,21 +279,21 @@ window.downloadResults = async function(){
 
 
 
-// =====================================================
-// RESET ATTEMPTS FOR A QUIZ (ALLOW RE-EXAM)
-// =====================================================
+
+
 window.resetAttempts = async function(quizId){
 
   const usersSnap = await getDocs(collection(db,"users"));
 
-  for(const u of usersSnap.docs){
-    const data=u.data();
-    if(data.role==="student"){
-      await updateDoc(doc(db,"users",u.id),{
-        [`attempts.${quizId}`]: false
-      });
-    }
-  }
+  usersSnap.forEach(async (docSnap)=>{
+     const data = docSnap.data();
+     if(data.role === "student"){
+        await updateDoc(doc(db,"users",docSnap.id),{
+           [`attempts.${quizId}`]: false
+        });
+     }
+  });
 
-  alert("All students can retake: "+quizId);
+  alert("Attempts reset for " + quizId);
 };
+

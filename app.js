@@ -24,100 +24,66 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+window.register = async function() {
 
+  const email = document.getElementById("email").value.trim().toLowerCase();
+  const password = document.getElementById("password").value;
 
-// ================= REGISTER =================
-window.register = async function(){
+  const allowed = await getDoc(doc(db,"allowedEmails",email));
 
-  const emailVal = email.value.trim().toLowerCase();
-  const passwordVal = password.value;
-
-  if(!emailVal || !passwordVal){
-    msg.innerText = "Enter email and password.";
-    return;
-  }
-
-  // 🔐 PERMANENT APPROVAL CHECK
-  const allowedSnap = await getDoc(doc(db,"allowedEmails",emailVal));
-
-  if(!allowedSnap.exists()){
-    msg.innerText = "You are not approved by admin yet.";
+  if(!allowed.exists()){
+    msg.innerText="Email not allowed.";
     return;
   }
 
   try{
-
-    const userCred = await createUserWithEmailAndPassword(auth,emailVal,passwordVal);
-    const user = userCred.user;
-
-    await setDoc(doc(db,"users",user.uid),{
-      email:user.email,
-      role:"student",
-      status:"registered",
-      attempts:{},
-      createdAt:new Date().toISOString()
-    });
-
-    await sendEmailVerification(user);
-
-    msg.innerText="Registered successfully. Verify email then login.";
-
+    const user = await createUserWithEmailAndPassword(auth,email,password);
+    await sendEmailVerification(user.user);
+    msg.innerText="Verification email sent.";
   }catch(e){
     msg.innerText=e.message;
   }
 };
 
-
-
-// ================= LOGIN =================
 window.login = async function(){
 
   try{
 
-    const emailVal = document.getElementById("email").value.trim().toLowerCase();
-    const passwordVal = document.getElementById("password").value;
+    const email = document.getElementById("email").value.trim().toLowerCase();
+    const password = document.getElementById("password").value;
 
-    const userCred = await signInWithEmailAndPassword(auth,emailVal,passwordVal);
+    const userCred = await signInWithEmailAndPassword(auth,email,password);
     const user = userCred.user;
 
     const userRef = doc(db,"users",user.uid);
     const userDoc = await getDoc(userRef);
 
-    // first login create profile
     if(!userDoc.exists()){
       await setDoc(userRef,{
         email:user.email,
         role:(user.email==="prakash4snu@gmail.com")?"admin":"student",
         status:"online",
-        attempts:{}
+        attempted:false
       });
     }
 
     const role = (await getDoc(userRef)).data().role;
 
-    // ================= ADMIN =================
     if(role==="admin"){
       window.location.href="admin.html";
-      return;
+    }else{
+      if(!user.emailVerified){
+        msg.innerText="Verify email first.";
+        return;
+      }
+      window.location.href="student.html";
     }
-
-    // ================= STUDENT =================
-    if(!user.emailVerified){
-      msg.innerText="Verify email first.";
-      return;
-    }
-
-    // ONLY REDIRECT
-    window.location.href="student.html";
 
   }catch(e){
-    msg.innerText="Invalid email or password.";
+    msg.innerText="Invalid login.";
   }
 };
 
-
-
-// ================= RESET PASSWORD =================
 window.resetPassword = async function(){
   await sendPasswordResetEmail(auth,email.value.trim());
   msg.innerText="Password reset email sent.";
