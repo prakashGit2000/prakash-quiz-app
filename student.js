@@ -131,14 +131,21 @@ function renderQuestion() {
     <div class="options">
   `;
 
-  const options = [q.option1, q.option2, q.option3, q.option4];
+  const options = [
+    q.option1,
+    q.option2,
+    q.option3,
+    q.option4
+  ];
 
-  options.forEach(opt => {
+  options.forEach((opt, index) => {
 
     html += `
       <label class="option-row">
-        <input type="radio" name="option" value="${opt}"
-        ${answers[currentIndex] === opt ? "checked" : ""}>
+        <input type="radio"
+               name="option"
+               value="${index + 1}"
+               ${answers[currentIndex] == index + 1 ? "checked" : ""}>
         <span>${opt}</span>
       </label>
     `;
@@ -150,6 +157,13 @@ function renderQuestion() {
 
   updatePalette();
 }
+
+
+document.addEventListener("change", function(e){
+  if(e.target.name === "option"){
+    answers[currentIndex] = Number(e.target.value);
+  }
+});
 
 
 
@@ -260,16 +274,19 @@ async function submitQuiz(user) {
   }
 
   clearInterval(timerInterval);
-
-  let score=0;
+let score = 0;
 let attempted=0;
+questions.forEach((q, index) => {
 
-questions.forEach(q=>{
-  if(answers[q.id]){
-    attempted++;
-    if(answers[q.id]===q.answer) score++;
+  if (Number(q.answer) === answers[index]) {
+    score++;
   }
+
 });
+
+  
+
+
 
 
   await setDoc(doc(db,"results",`${user.uid}_${currentQuizId}`),{
