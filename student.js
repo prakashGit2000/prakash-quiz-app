@@ -120,27 +120,37 @@ async function loadQuiz(user, quizId, duration){
 
 
 
-function renderQuestion(){
+function renderQuestion() {
 
-  const q=questions[currentIndex];
+  const q = questions[currentIndex];
 
-  let html=`<h3>Q${currentIndex+1}. ${q.question}</h3>`;
+  let html = `
+    <div class="question-title">
+      <h3>Q${currentIndex + 1}. ${q.question}</h3>
+    </div>
+    <div class="options">
+  `;
 
-  q.options.forEach(opt=>{
-    const checked = answers[q.id]===opt ? "checked":"";
-    html+=`
-      <label>
-        <input type="radio" name="option" value="${opt}" ${checked}
-          onchange="saveAnswer('${q.id}',this.value)">
-        ${opt}
-      </label><br>
+  const options = [q.option1, q.option2, q.option3, q.option4];
+
+  options.forEach(opt => {
+
+    html += `
+      <label class="option-row">
+        <input type="radio" name="option" value="${opt}"
+        ${answers[currentIndex] === opt ? "checked" : ""}>
+        <span>${opt}</span>
+      </label>
     `;
   });
 
-  questionBox.innerHTML=html;
+  html += `</div>`;
+
+  questionBox.innerHTML = html;
 
   updatePalette();
 }
+
 
 
 
@@ -208,13 +218,20 @@ function updatePalette(){
 
 
 // ================= TIMER =================
+const timerEl = document.getElementById("timer");
+
 function startTimer(user, minutes) {
 
   let t = minutes * 60;
 
   timerInterval = setInterval(() => {
 
-    timer.innerText = `Time Left: ${Math.floor(t / 60)}:${t % 60}`;
+    let min = Math.floor(t / 60);
+    let sec = t % 60;
+
+    if (sec < 10) sec = "0" + sec;
+
+    timerEl.innerText = "Time Left: " + min + ":" + sec;
 
     if (--t <= 0) {
       clearInterval(timerInterval);
@@ -223,6 +240,7 @@ function startTimer(user, minutes) {
 
   }, 1000);
 }
+
 
 
 // ================= MANUAL SUBMIT =================
