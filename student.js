@@ -21,18 +21,15 @@ const firebaseConfig = {
   projectId: "prakashsir-quiz-system"
 };
 
-let currentIndex = 0;
-let answers = {};
-
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-let timerInterval;
 let questions = [];
+let answers = {};
+let currentIndex = 0;
 let currentQuizId = null;
-
+let timerInterval;
 
 // ================= AUTH CHECK =================
 auth.onAuthStateChanged(async user => {
@@ -45,16 +42,8 @@ auth.onAuthStateChanged(async user => {
   const userDoc = await getDoc(doc(db, "users", user.uid));
   window.userData = userDoc.data();
 
-  if (window.userData?.attempts?.[currentQuizId] === true) {
-  alert("You already attempted this quiz.");
-  return;
-}
-
-
-
   listenExam(user);
 });
-
 
 // ================= REALTIME EXAM LISTENER =================
 function listenExam(user) {
@@ -63,10 +52,7 @@ function listenExam(user) {
 
   onSnapshot(examRef, async snap => {
 
-    if (!snap.exists()) {
-      examTitle.innerText = "No active exam";
-      return;
-    }
+    if (!snap.exists()) return;
 
     const data = snap.data();
 
@@ -83,12 +69,8 @@ function listenExam(user) {
   });
 }
 
-
-
-
-
-
-async function loadQuiz(user, quizId, duration){
+// ================= LOAD QUIZ =================
+async function loadQuiz(user, quizId, duration) {
 
   currentQuizId = quizId;
   questions = [];
@@ -97,143 +79,125 @@ async function loadQuiz(user, quizId, duration){
 
   clearInterval(timerInterval);
 
-  const snap = await getDocs(collection(db,"quizzes",quizId,"questions"));
+  const snap = await getDocs(collection(db, "quizzes", quizId, "questions"));
 
-  snap.forEach(d=>{
-    const q=d.data();
+  snap.forEach(d => {
+
+    const q = d.data();
+
     questions.push({
-      id:d.id,
-      question:q.question,
-      options:[q.option1,q.option2,q.option3,q.option4],
-      answer:q.answer
+      id: d.id,
+      question: q.question,
+      option1: q.option1,
+      option2: q.option2,
+      option3: q.option3,
+      option4: q.option4,
+      answer: Number(q.answer)
     });
-    answers[d.id]=null;
+
+    answers[d.id] = null;
   });
 
   renderQuestion();
   renderPalette();
-  startTimer(user,duration);
+  startTimer(user, duration);
 }
 
-
-
-
-
-
+// ================= RENDER QUESTION =================
 function renderQuestion() {
 
   const q = questions[currentIndex];
 
   let html = `
-    <div class="question-title">
-      <h3>Q${currentIndex + 1}. ${q.question}</h3>
-    </div>
-    <div class="options">
+    <h3>Q${currentIndex + 1}. ${q.question}</h3>
+    <br><br>
   `;
 
-  const options = [
-    q.option1,
-    q.option2,
-    q.option3,
-    q.option4
-  ];
-
-  options.forEach((opt, index) => {
+  for (let i = 1; i <= 4; i++) {
 
     html += `
-      <label class="option-row">
-        <input type="radio"
-               name="option"
-               value="${index + 1}"
-               ${answers[currentIndex] == index + 1 ? "checked" : ""}>
-        <span>${opt}</span>
-      </label>
+      <div style="margin-bottom:15px;">
+        <label>
+          <input type="radio"
+                 name="option"
+                 value="${i}"
+                 ${answers[q.id] === i ? "checked" : ""}>
+          ${q["option" + i]}
+        </label>
+      </div>
     `;
-  });
+  }
 
-  html += `</div>`;
-
-  questionBox.innerHTML = html;
+  document.getElementById("questionBox").innerHTML = html;
 
   updatePalette();
 }
 
+// ================= SAVE ANSWER =================
+document.addEventListener("change", function (e) {
 
-document.addEventListener("change", function(e){
-  if(e.target.name === "option"){
-    answers[currentIndex] = Number(e.target.value);
+  if (e.target.name === "option") {
+    const q = questions[currentIndex];
+    answers[q.id] = Number(e.target.value);
+    updatePalette();
   }
 });
 
-
-
-
-
-window.saveAnswer=function(qid,value){
-  answers[qid]=value;
-  updatePalette();
-}
-
-
-
-
-
-window.nextQuestion=function(){
-  if(currentIndex<questions.length-1){
+// ================= NAVIGATION =================
+window.nextQuestion = function () {
+  if (currentIndex < questions.length - 1) {
     currentIndex++;
     renderQuestion();
   }
-}
+};
 
-window.prevQuestion=function(){
-  if(currentIndex>0){
+window.prevQuestion = function () {
+  if (currentIndex > 0) {
     currentIndex--;
     renderQuestion();
   }
-}
+};
 
+window.jump = function (i) {
+  currentIndex = i;
+  renderQuestion();
+};
 
+// ================= QUESTION PALETTE =================
+function renderPalette() {
 
+  let html = "";
 
-
-
-function renderPalette(){
-
-  let html="";
-
-  questions.forEach((q,i)=>{
-    html+=`<div class="qbox" id="p${i}" onclick="jump(${i})">${i+1}</div>`;
+  questions.forEach((q, i) => {
+    html += `<div class="qbox" id="p${i}" onclick="jump(${i})">${i + 1}</div>`;
   });
 
-  palette.innerHTML=html;
+  document.getElementById("palette").innerHTML = html;
+
   updatePalette();
 }
 
-window.jump=function(i){
-  currentIndex=i;
-  renderQuestion();
-}
+function updatePalette() {
 
-function updatePalette(){
+  questions.forEach((q, i) => {
 
-  questions.forEach((q,i)=>{
+    const box = document.getElementById("p" + i);
 
-    const box=document.getElementById("p"+i);
-    box.className="qbox";
+    box.className = "qbox";
 
-    if(i===currentIndex) box.classList.add("current");
-    else if(answers[q.id]) box.classList.add("answered");
-    else box.classList.add("notanswered");
-
+    if (i === currentIndex) {
+      box.classList.add("current");
+    }
+    else if (answers[q.id] !== null) {
+      box.classList.add("answered");
+    }
+    else {
+      box.classList.add("notanswered");
+    }
   });
 }
 
-
-
-
 // ================= TIMER =================
-const timerEl = document.getElementById("timer");
-
 function startTimer(user, minutes) {
 
   let t = minutes * 60;
@@ -245,9 +209,10 @@ function startTimer(user, minutes) {
 
     if (sec < 10) sec = "0" + sec;
 
-    timerEl.innerText = "Time Left: " + min + ":" + sec;
+    document.getElementById("timer").innerText =
+      "Time Left: " + min + ":" + sec;
 
-    if (--t <= 0) {
+    if (--t < 0) {
       clearInterval(timerInterval);
       submitQuiz(user);
     }
@@ -255,65 +220,52 @@ function startTimer(user, minutes) {
   }, 1000);
 }
 
-
-
 // ================= MANUAL SUBMIT =================
 window.manualSubmit = function () {
   submitQuiz(auth.currentUser);
 };
-
 
 // ================= SUBMIT QUIZ =================
 async function submitQuiz(user) {
 
   if (!user || !currentQuizId) return;
 
-  if (window.userData?.attempts?.[currentQuizId] === true) {
-    alert("You already attempted this quiz.");
-    return;
-  }
-
   clearInterval(timerInterval);
-let score = 0;
-let attempted=0;
-questions.forEach((q, index) => {
 
-  if (Number(q.answer) === answers[index]) {
-    score++;
-  }
+  let score = 0;
+  let attempted = 0;
 
-});
+  questions.forEach(q => {
 
-  
+    if (answers[q.id] !== null) {
+      attempted++;
+    }
 
+    if (answers[q.id] === q.answer) {
+      score++;
+    }
+  });
 
-
-
-  await setDoc(doc(db,"results",`${user.uid}_${currentQuizId}`),{
-  userId:user.uid,
-  email:user.email,
-  quizId:currentQuizId,
-  score,
-  total:questions.length,
-  attempted,
-  notAttempted:questions.length-attempted,
-  submittedAt:new Date().toISOString()
-});
-
+  await setDoc(doc(db, "results", `${user.uid}_${currentQuizId}`), {
+    userId: user.uid,
+    email: user.email,
+    quizId: currentQuizId,
+    score,
+    total: questions.length,
+    attempted,
+    notAttempted: questions.length - attempted,
+    submittedAt: new Date().toISOString()
+  });
 
   await updateDoc(doc(db, "users", user.uid), {
     [`attempts.${currentQuizId}`]: true,
     status: "submitted"
   });
 
-  if (!window.userData.attempts) {
-    window.userData.attempts = {};
-  }
-
-  window.userData.attempts[currentQuizId] = true;
-
-  quiz.innerHTML = `
+  document.getElementById("questionBox").innerHTML = `
     <h2>Submitted Successfully</h2>
+    <h3>Attempted: ${attempted}</h3>
+    <h3>Not Attempted: ${questions.length - attempted}</h3>
     <h3>Score: ${score}/${questions.length}</h3>
   `;
 
@@ -321,8 +273,6 @@ questions.forEach((q, index) => {
     window.location.href = "index.html";
   }, 5000);
 }
-
-
 
 // ================= TAB SWITCH DETECTION =================
 document.addEventListener("visibilitychange", () => {
