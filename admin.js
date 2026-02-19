@@ -95,7 +95,7 @@ window.createQuiz = async function(){
         option2:r.option2,
         option3:r.option3,
         option4:r.option4,
-        answer:r.answer
+        answer: Number(r.answer)
       });
       i++;
     }
